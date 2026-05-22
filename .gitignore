@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+**/node_modules/
+
+# Next.js
+.next/
+out/
+dist/
+
+# Python
+.venv/
+**/.venv/
+__pycache__/
+*.pyc
+
+# env files
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+
+# OS/editor
+.DS_Store
+.vscode/
