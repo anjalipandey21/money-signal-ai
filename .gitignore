@@ -18,8 +18,24 @@ __pycache__/
 .env.*
 !.env.example
 
-# logs
+# Node / Next.js
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+out/
+dist/
+
+# Logs
 *.log
+
+# Local database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Agent/Codex local files
+.agents/
 
 # OS/editor
 .DS_Store
