@@ -5,6 +5,15 @@ from app.models.stock import Stock
 
 
 def get_dashboard_signals(db: Session):
+    """
+    Fetch dashboard signals from the database.
+
+    This service layer keeps database/query logic out of the router.
+    Router = API endpoint
+    Service = business/database logic
+    Model = database table
+    """
+
     signals = (
         db.query(Signal)
         .join(Stock)
