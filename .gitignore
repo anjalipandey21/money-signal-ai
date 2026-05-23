@@ -1,0 +1,31 @@
+# dependencies
+node_modules/
+**/node_modules/
+
+# Next.js
+.next/
+out/
+dist/
+
+# Python
+.venv/
+**/.venv/
+__pycache__/
+*.pyc
+
+# Local database files
+*.db
+*.sqlite
+*.sqlite3
+
+# env files
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+
+# OS/editor
+.DS_Store
+.vscode/
