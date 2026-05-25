@@ -4,37 +4,7 @@ import { ActionBadge } from "@/components/ui/ActionBadge";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
 import { DashboardBackendStatus } from "@/components/dashboard/DashboardBackendStatus";
 import { TopMoneySignalScores } from "@/components/dashboard/TopMoneySignalScores";
-
-const institutionalMoves = [
-  {
-    institution: "BlackRock Inc.",
-    ticker: "TSLA",
-    action: "Accumulate",
-    value: "$1.2B",
-    time: "09:42 EST",
-  },
-  {
-    institution: "Vanguard Group",
-    ticker: "AAPL",
-    action: "Accumulate",
-    value: "$840M",
-    time: "11:15 EST",
-  },
-  {
-    institution: "Goldman Sachs",
-    ticker: "NFLX",
-    action: "Trim",
-    value: "$420M",
-    time: "13:22 EST",
-  },
-  {
-    institution: "JPMorgan Chase",
-    ticker: "AMD",
-    action: "Accumulate",
-    value: "$310M",
-    time: "14:05 EST",
-  },
-];
+import { RecentInstitutionalMoves } from "@/components/dashboard/RecentInstitutionalMoves";
 
 const insiderTrades = [
   {
@@ -69,54 +39,6 @@ const watchlist = [
   { ticker: "AVGO", change: "+0.88%", trend: "positive" },
   { ticker: "PLTR", change: "+5.42%", trend: "positive" },
 ];
-
-function InstitutionalMovesTable() {
-  return (
-    <GlassPanel>
-      <div className="flex items-center justify-between border-b border-[#424754]/30 p-4">
-        <h2 className="text-[18px] font-semibold text-[#e0e2ed]">
-          Recent Institutional Moves
-        </h2>
-        <span className="font-mono text-[10px] uppercase text-[#c2c6d6]">
-          Last 24 Hours
-        </span>
-      </div>
-
-      <table className="w-full border-collapse text-left">
-        <thead>
-          <tr className="border-b border-[#424754]/30 font-mono text-[10px] uppercase tracking-wider text-[#c2c6d6]">
-            <th className="px-4 py-3 font-medium">Institution</th>
-            <th className="px-4 py-3 font-medium">Ticker</th>
-            <th className="px-4 py-3 font-medium">Action</th>
-            <th className="px-4 py-3 text-right font-medium">Value</th>
-            <th className="px-4 py-3 text-right font-medium">Time</th>
-          </tr>
-        </thead>
-
-        <tbody className="divide-y divide-[#424754]/20 font-mono text-[14px] text-[#e0e2ed]">
-          {institutionalMoves.map((move) => (
-            <tr
-              key={`${move.institution}-${move.ticker}`}
-              className="hover:bg-[#262a32]/50"
-            >
-              <td className="px-4 py-3 text-[12px] font-medium">
-                {move.institution}
-              </td>
-              <td className="px-4 py-3 text-[#adc6ff]">{move.ticker}</td>
-              <td className="px-4 py-3">
-                <ActionBadge action={move.action} />
-              </td>
-              <td className="px-4 py-3 text-right">{move.value}</td>
-              <td className="px-4 py-3 text-right text-xs text-[#c2c6d6]">
-                {move.time}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </GlassPanel>
-  );
-}
 
 function InsiderTradesTable() {
   return (
@@ -305,7 +227,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
-          <InstitutionalMovesTable />
+          <RecentInstitutionalMoves />
           <InsiderTradesTable />
           <WatchlistPreview />
         </div>

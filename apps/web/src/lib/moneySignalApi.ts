@@ -29,6 +29,14 @@ export type TopMoneySignalScore = {
   score: number;
 };
 
+export type InstitutionalMove = {
+  institution: string;
+  ticker: string;
+  action: string;
+  value: string;
+  time: string;
+};
+
 function getAuthToken() {
   const session = getAuthSession();
   return session?.token;
@@ -54,6 +62,12 @@ export async function getWatchlist() {
 
 export async function getTopMoneySignalScores() {
   return apiClient<TopMoneySignalScore[]>("/api/v1/dashboard/top-scores", {
+    authToken: getAuthToken(),
+  });
+}
+
+export async function getInstitutionalMoves() {
+  return apiClient<InstitutionalMove[]>("/api/v1/dashboard/institutional-moves", {
     authToken: getAuthToken(),
   });
 }
