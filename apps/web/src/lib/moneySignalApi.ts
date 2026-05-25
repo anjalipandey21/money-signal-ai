@@ -46,6 +46,19 @@ export type InsiderTrade = {
   date: string;
 };
 
+export type AIMarketPulse = {
+  title: string;
+  summary: string;
+  sentimentLabel: string;
+  sentimentScore: number;
+};
+
+export type WatchlistPreviewItem = {
+  ticker: string;
+  change: string;
+  trend: "positive" | "negative";
+};
+
 function getAuthToken() {
   const session = getAuthSession();
   return session?.token;
@@ -83,6 +96,18 @@ export async function getInstitutionalMoves() {
 
 export async function getInsiderTrades() {
   return apiClient<InsiderTrade[]>("/api/v1/dashboard/insider-trades", {
+    authToken: getAuthToken(),
+  });
+}
+
+export async function getAIMarketPulse() {
+  return apiClient<AIMarketPulse>("/api/v1/dashboard/ai-market-pulse", {
+    authToken: getAuthToken(),
+  });
+}
+
+export async function getWatchlistPreview() {
+  return apiClient<WatchlistPreviewItem[]>("/api/v1/dashboard/watchlist-preview", {
     authToken: getAuthToken(),
   });
 }
