@@ -114,3 +114,16 @@ def get_recent_insider_trades():
             "date": "2d ago",
         },
     ]
+
+@router.get("/ai-market-pulse")
+def get_ai_market_pulse():
+    return {
+        "title": "Smart Money Rotation",
+        "summary": (
+            "Data indicates a significant shift from Megacap Tech into Mid-cap "
+            "Energy. AI sentiment remains net positive but shows exhaustion in "
+            "semiconductor manufacturing."
+        ),
+        "sentimentLabel": "Macro Sentiment",
+        "sentimentScore": 62,
+    }
