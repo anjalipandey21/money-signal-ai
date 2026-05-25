@@ -127,3 +127,28 @@ def get_ai_market_pulse():
         "sentimentLabel": "Macro Sentiment",
         "sentimentScore": 62,
     }
+
+@router.get("/watchlist-preview")
+def get_watchlist_preview():
+    return [
+        {
+            "ticker": "TSLA",
+            "change": "-1.42%",
+            "trend": "negative",
+        },
+        {
+            "ticker": "AMD",
+            "change": "+3.15%",
+            "trend": "positive",
+        },
+        {
+            "ticker": "AVGO",
+            "change": "+0.88%",
+            "trend": "positive",
+        },
+        {
+            "ticker": "PLTR",
+            "change": "+5.42%",
+            "trend": "positive",
+        },
+    ]
