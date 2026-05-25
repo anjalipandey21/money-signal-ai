@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
+import { createMockSession, saveAuthSession } from "@/lib/authSession";
 
 const signalRows = [
   {
@@ -144,13 +145,20 @@ export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    // Temporary frontend-only auth.
-    // Later we can replace this with real auth: NextAuth, Clerk, Auth0, Supabase, or custom JWT.
-    router.push("/dashboard");
-  }
+    const formData = new FormData(event.currentTarget);
+    const email = String(formData.get("email") || "analyst@moneysignal.ai");
+
+    const session = createMockSession(email);
+    saveAuthSession(session);
+
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get("next");
+
+    router.replace(next || "/dashboard");
+    }
 
   return (
     <main
