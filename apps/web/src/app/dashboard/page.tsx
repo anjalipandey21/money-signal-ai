@@ -2,25 +2,65 @@ import { AppShell } from "@/components/layout/AppShell";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { ActionBadge } from "@/components/ui/ActionBadge";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
-
-const scoreCards = [
-  { ticker: "GOOGL", company: "Alphabet Inc.", price: "$174.52", change: "+2.4%", score: 91 },
-  { ticker: "NVDA", company: "Nvidia Corp.", price: "$128.61", change: "+4.1%", score: 88 },
-  { ticker: "MSFT", company: "Microsoft Corp.", price: "$442.10", change: "+0.8%", score: 85 },
-  { ticker: "META", company: "Meta Platforms", price: "$502.14", change: "+1.9%", score: 82 },
-];
+import { DashboardBackendStatus } from "@/components/dashboard/DashboardBackendStatus";
+import { TopMoneySignalScores } from "@/components/dashboard/TopMoneySignalScores";
 
 const institutionalMoves = [
-  { institution: "BlackRock Inc.", ticker: "TSLA", action: "Accumulate", value: "$1.2B", time: "09:42 EST" },
-  { institution: "Vanguard Group", ticker: "AAPL", action: "Accumulate", value: "$840M", time: "11:15 EST" },
-  { institution: "Goldman Sachs", ticker: "NFLX", action: "Trim", value: "$420M", time: "13:22 EST" },
-  { institution: "JPMorgan Chase", ticker: "AMD", action: "Accumulate", value: "$310M", time: "14:05 EST" },
+  {
+    institution: "BlackRock Inc.",
+    ticker: "TSLA",
+    action: "Accumulate",
+    value: "$1.2B",
+    time: "09:42 EST",
+  },
+  {
+    institution: "Vanguard Group",
+    ticker: "AAPL",
+    action: "Accumulate",
+    value: "$840M",
+    time: "11:15 EST",
+  },
+  {
+    institution: "Goldman Sachs",
+    ticker: "NFLX",
+    action: "Trim",
+    value: "$420M",
+    time: "13:22 EST",
+  },
+  {
+    institution: "JPMorgan Chase",
+    ticker: "AMD",
+    action: "Accumulate",
+    value: "$310M",
+    time: "14:05 EST",
+  },
 ];
 
 const insiderTrades = [
-  { insider: "Tim Cook", ticker: "AAPL", role: "CEO", action: "Sell", value: "$33.2M", date: "Today" },
-  { insider: "Mark Zuckerberg", ticker: "META", role: "CEO", action: "Sell", value: "$18.5M", date: "Yesterday" },
-  { insider: "Jensen Huang", ticker: "NVDA", role: "CEO", action: "Sell", value: "$24.1M", date: "2d ago" },
+  {
+    insider: "Tim Cook",
+    ticker: "AAPL",
+    role: "CEO",
+    action: "Sell",
+    value: "$33.2M",
+    date: "Today",
+  },
+  {
+    insider: "Mark Zuckerberg",
+    ticker: "META",
+    role: "CEO",
+    action: "Sell",
+    value: "$18.5M",
+    date: "Yesterday",
+  },
+  {
+    insider: "Jensen Huang",
+    ticker: "NVDA",
+    role: "CEO",
+    action: "Sell",
+    value: "$24.1M",
+    date: "2d ago",
+  },
 ];
 
 const watchlist = [
@@ -29,50 +69,6 @@ const watchlist = [
   { ticker: "AVGO", change: "+0.88%", trend: "positive" },
   { ticker: "PLTR", change: "+5.42%", trend: "positive" },
 ];
-
-function ScoreCard({
-  ticker,
-  company,
-  price,
-  change,
-  score,
-}: {
-  ticker: string;
-  company: string;
-  price: string;
-  change: string;
-  score: number;
-}) {
-  return (
-    <GlassPanel className="p-4 transition hover:border-[#adc6ff] hover:shadow-[0_0_8px_rgba(77,142,255,0.3)]">
-      <div className="mb-4 flex items-start justify-between">
-        <div>
-          <h3 className="text-[18px] font-bold tracking-tight text-[#e0e2ed]">
-            {ticker}
-          </h3>
-          <p className="mt-1 font-mono text-[10px] uppercase text-[#c2c6d6]">
-            {company}
-          </p>
-        </div>
-
-        <div className="rounded-[2px] border border-[#4edea3]/20 bg-[#4edea3]/10 px-2 py-1 font-mono text-[14px] font-bold text-[#4edea3]">
-          {score}
-        </div>
-      </div>
-
-      <div className="flex items-end justify-between">
-        <div>
-          <p className="mb-1 font-mono text-[10px] uppercase text-[#c2c6d6]">
-            Price
-          </p>
-          <p className="text-[14px] font-medium text-[#e0e2ed]">{price}</p>
-        </div>
-
-        <div className="font-mono text-xs text-[#4edea3]">{change}</div>
-      </div>
-    </GlassPanel>
-  );
-}
 
 function InstitutionalMovesTable() {
   return (
@@ -99,14 +95,21 @@ function InstitutionalMovesTable() {
 
         <tbody className="divide-y divide-[#424754]/20 font-mono text-[14px] text-[#e0e2ed]">
           {institutionalMoves.map((move) => (
-            <tr key={`${move.institution}-${move.ticker}`} className="hover:bg-[#262a32]/50">
-              <td className="px-4 py-3 text-[12px] font-medium">{move.institution}</td>
+            <tr
+              key={`${move.institution}-${move.ticker}`}
+              className="hover:bg-[#262a32]/50"
+            >
+              <td className="px-4 py-3 text-[12px] font-medium">
+                {move.institution}
+              </td>
               <td className="px-4 py-3 text-[#adc6ff]">{move.ticker}</td>
               <td className="px-4 py-3">
                 <ActionBadge action={move.action} />
               </td>
               <td className="px-4 py-3 text-right">{move.value}</td>
-              <td className="px-4 py-3 text-right text-xs text-[#c2c6d6]">{move.time}</td>
+              <td className="px-4 py-3 text-right text-xs text-[#c2c6d6]">
+                {move.time}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -141,15 +144,24 @@ function InsiderTradesTable() {
 
         <tbody className="divide-y divide-[#424754]/20 font-mono text-[14px] text-[#e0e2ed]">
           {insiderTrades.map((trade) => (
-            <tr key={`${trade.insider}-${trade.ticker}`} className="hover:bg-[#262a32]/50">
-              <td className="px-4 py-3 text-[12px] font-medium">{trade.insider}</td>
+            <tr
+              key={`${trade.insider}-${trade.ticker}`}
+              className="hover:bg-[#262a32]/50"
+            >
+              <td className="px-4 py-3 text-[12px] font-medium">
+                {trade.insider}
+              </td>
               <td className="px-4 py-3 text-[#adc6ff]">{trade.ticker}</td>
-              <td className="px-4 py-3 text-xs text-[#c2c6d6]">{trade.role}</td>
+              <td className="px-4 py-3 text-xs text-[#c2c6d6]">
+                {trade.role}
+              </td>
               <td className="px-4 py-3">
                 <ActionBadge action={trade.action} />
               </td>
               <td className="px-4 py-3 text-right">{trade.value}</td>
-              <td className="px-4 py-3 text-right text-xs text-[#c2c6d6]">{trade.date}</td>
+              <td className="px-4 py-3 text-right text-xs text-[#c2c6d6]">
+                {trade.date}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -238,16 +250,31 @@ function WatchlistPreview() {
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {watchlist.map((item) => (
-          <div key={item.ticker} className="rounded-[2px] border border-[#424754]/20 bg-[#0a0e16] p-3">
+          <div
+            key={item.ticker}
+            className="rounded-[2px] border border-[#424754]/20 bg-[#0a0e16] p-3"
+          >
             <div className="mb-2 flex items-start justify-between">
-              <span className="text-[12px] font-bold text-[#e0e2ed]">{item.ticker}</span>
-              <span className={item.trend === "positive" ? "font-mono text-[10px] text-[#4edea3]" : "font-mono text-[10px] text-[#ffb4ab]"}>
+              <span className="text-[12px] font-bold text-[#e0e2ed]">
+                {item.ticker}
+              </span>
+              <span
+                className={
+                  item.trend === "positive"
+                    ? "font-mono text-[10px] text-[#4edea3]"
+                    : "font-mono text-[10px] text-[#ffb4ab]"
+                }
+              >
                 {item.change}
               </span>
             </div>
 
             <div className="mt-2 h-12 w-full">
-              <svg className="h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 30">
+              <svg
+                className="h-full w-full"
+                preserveAspectRatio="none"
+                viewBox="0 0 100 30"
+              >
                 <path
                   d={
                     item.trend === "positive"
@@ -272,24 +299,9 @@ function WatchlistPreview() {
 export default function DashboardPage() {
   return (
     <AppShell activePage="Dashboard">
-      <section>
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[#e0e2ed]">
-            <MaterialIcon name="stars" fill className="text-[22px] text-[#adc6ff]" />
-            <h2 className="text-[18px] font-semibold">Top MoneySignal Scores</h2>
-          </div>
+      <DashboardBackendStatus />
 
-          <a className="font-mono text-[12px] uppercase tracking-wider text-[#c2c6d6] hover:text-[#adc6ff]" href="#">
-            View All Tickers
-          </a>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {scoreCards.map((card) => (
-            <ScoreCard key={card.ticker} {...card} />
-          ))}
-        </div>
-      </section>
+      <TopMoneySignalScores />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
