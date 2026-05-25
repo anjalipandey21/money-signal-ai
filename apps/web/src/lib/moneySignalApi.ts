@@ -37,6 +37,15 @@ export type InstitutionalMove = {
   time: string;
 };
 
+export type InsiderTrade = {
+  insider: string;
+  ticker: string;
+  role: string;
+  action: string;
+  value: string;
+  date: string;
+};
+
 function getAuthToken() {
   const session = getAuthSession();
   return session?.token;
@@ -68,6 +77,12 @@ export async function getTopMoneySignalScores() {
 
 export async function getInstitutionalMoves() {
   return apiClient<InstitutionalMove[]>("/api/v1/dashboard/institutional-moves", {
+    authToken: getAuthToken(),
+  });
+}
+
+export async function getInsiderTrades() {
+  return apiClient<InsiderTrade[]>("/api/v1/dashboard/insider-trades", {
     authToken: getAuthToken(),
   });
 }

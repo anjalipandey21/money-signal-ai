@@ -85,3 +85,32 @@ def get_recent_institutional_moves():
             "time": "14:05 EST",
         },
     ]
+
+@router.get("/insider-trades")
+def get_recent_insider_trades():
+    return [
+        {
+            "insider": "Tim Cook",
+            "ticker": "AAPL",
+            "role": "CEO",
+            "action": "Sell",
+            "value": "$33.2M",
+            "date": "Today",
+        },
+        {
+            "insider": "Mark Zuckerberg",
+            "ticker": "META",
+            "role": "CEO",
+            "action": "Sell",
+            "value": "$18.5M",
+            "date": "Yesterday",
+        },
+        {
+            "insider": "Jensen Huang",
+            "ticker": "NVDA",
+            "role": "CEO",
+            "action": "Sell",
+            "value": "$24.1M",
+            "date": "2d ago",
+        },
+    ]
