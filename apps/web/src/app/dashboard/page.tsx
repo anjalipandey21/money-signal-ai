@@ -2,7 +2,6 @@ import { AppShell } from "@/components/layout/AppShell";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { ActionBadge } from "@/components/ui/ActionBadge";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
-import { DashboardBackendStatus } from "@/components/dashboard/DashboardBackendStatus";
 import { TopMoneySignalScores } from "@/components/dashboard/TopMoneySignalScores";
 import { RecentInstitutionalMoves } from "@/components/dashboard/RecentInstitutionalMoves";
 import { RecentInsiderTrades } from "@/components/dashboard/RecentInsiderTrades";
@@ -32,7 +31,6 @@ function AIAssistantButton() {
 export default function DashboardPage() {
   return (
     <AppShell activePage="Dashboard">
-      <DashboardBackendStatus />
 
       <TopMoneySignalScores />
 

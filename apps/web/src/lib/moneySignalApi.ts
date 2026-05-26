@@ -12,13 +12,13 @@ export type DashboardSummary = {
 export type SignalItem = {
   id: string;
   ticker: string;
-  companyName: string;
-  signalType: string;
-  direction: "bullish" | "bearish" | "mixed" | "neutral";
+  signalEvent: string;
   score: number;
+  confidence: number;
   source: string;
-  summary: string;
-  detectedAt: string;
+  aiContext: string;
+  time: string;
+  direction: "bullish" | "bearish" | "mixed" | "neutral";
 };
 
 export type TopMoneySignalScore = {
