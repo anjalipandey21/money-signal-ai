@@ -5,6 +5,7 @@ from app.db.database import Base, engine
 from app.models import stock, signal
 from app.routers.dashboard import router as dashboard_router
 from app.routers.health import router as health_router
+from app.routers.signals import router as signals_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -24,3 +25,4 @@ app.add_middleware(
 
 app.include_router(health_router, prefix="/api")
 app.include_router(dashboard_router)
+app.include_router(signals_router)
