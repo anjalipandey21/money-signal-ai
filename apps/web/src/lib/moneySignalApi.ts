@@ -12,13 +12,13 @@ export type DashboardSummary = {
 export type SignalItem = {
   id: string;
   ticker: string;
-  companyName: string;
-  signalType: string;
-  direction: "bullish" | "bearish" | "mixed" | "neutral";
+  signalEvent: string;
   score: number;
+  confidence: number;
   source: string;
-  summary: string;
-  detectedAt: string;
+  aiContext: string;
+  time: string;
+  direction: "bullish" | "bearish" | "mixed" | "neutral";
 };
 
 export type TopMoneySignalScore = {
@@ -35,6 +35,94 @@ export type InstitutionalMove = {
   action: string;
   value: string;
   time: string;
+};
+
+export type InsiderTrade = {
+  insider: string;
+  ticker: string;
+  role: string;
+  action: string;
+  value: string;
+  date: string;
+};
+
+export type AIMarketPulse = {
+  title: string;
+  summary: string;
+  sentimentLabel: string;
+  sentimentScore: number;
+};
+
+export type WatchlistPreviewItem = {
+  ticker: string;
+  change: string;
+  trend: "positive" | "negative";
+};
+
+export type WatchlistAsset = {
+  ticker: string;
+  companyName: string;
+  sector: string;
+  price: string;
+  change: string;
+  score: number;
+  signal: string;
+  direction: "bullish" | "bearish" | "mixed" | "neutral";
+  alertStatus: string;
+  lastUpdated: string;
+};
+
+export type StockTone =
+  | "positive"
+  | "negative"
+  | "neutral"
+  | "primary"
+  | "secondary";
+
+export type StockFactor = {
+  label: string;
+  value: number;
+  tone: StockTone;
+};
+
+export type StockFundMovement = {
+  institution: string;
+  action: string;
+  sharesChange: string;
+  tone: StockTone;
+};
+
+export type StockInsiderTrade = {
+  insider: string;
+  type: string;
+  value: string;
+  tone: StockTone;
+};
+
+export type StockTimelineEvent = {
+  label: string;
+  time: string;
+  description: string;
+  tone: StockTone;
+};
+
+export type StockDetail = {
+  ticker: string;
+  companyName: string;
+  category: string;
+  price: string;
+  changeAmount: string;
+  changePercent: string;
+  moneySignalScore: number;
+  scoreLabel: string;
+  executiveSummary: string;
+  whyItMatters: string;
+  watchNext: string[];
+  riskNote: string;
+  factorBreakdown: StockFactor[];
+  fundMovement: StockFundMovement[];
+  insiderTrades: StockInsiderTrade[];
+  timeline: StockTimelineEvent[];
 };
 
 function getAuthToken() {
@@ -55,7 +143,7 @@ export async function getSignals() {
 }
 
 export async function getWatchlist() {
-  return apiClient<SignalItem[]>("/api/v1/watchlist", {
+  return apiClient<WatchlistAsset[]>("/api/v1/watchlist", {
     authToken: getAuthToken(),
   });
 }
@@ -68,6 +156,30 @@ export async function getTopMoneySignalScores() {
 
 export async function getInstitutionalMoves() {
   return apiClient<InstitutionalMove[]>("/api/v1/dashboard/institutional-moves", {
+    authToken: getAuthToken(),
+  });
+}
+
+export async function getInsiderTrades() {
+  return apiClient<InsiderTrade[]>("/api/v1/dashboard/insider-trades", {
+    authToken: getAuthToken(),
+  });
+}
+
+export async function getAIMarketPulse() {
+  return apiClient<AIMarketPulse>("/api/v1/dashboard/ai-market-pulse", {
+    authToken: getAuthToken(),
+  });
+}
+
+export async function getWatchlistPreview() {
+  return apiClient<WatchlistPreviewItem[]>("/api/v1/dashboard/watchlist-preview", {
+    authToken: getAuthToken(),
+  });
+}
+
+export async function getStockDetail(ticker: string) {
+  return apiClient<StockDetail>(`/api/v1/stocks/${ticker}`, {
     authToken: getAuthToken(),
   });
 }

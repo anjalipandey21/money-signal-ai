@@ -1,56 +1,6 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
-
-const watchlistRows = [
-  {
-    ticker: "NVDA",
-    company: "NVIDIA Corp",
-    sector: "Technology",
-    price: "$875.28",
-    score: 92,
-    scoreChange: "4.2",
-    scoreTrend: "up",
-    signal: "Insider Accumulation",
-    signalTone: "purple",
-    updated: "2h ago",
-  },
-  {
-    ticker: "PLTR",
-    company: "Palantir Tech",
-    sector: "Software",
-    price: "$24.15",
-    score: 88,
-    scoreChange: "1.5",
-    scoreTrend: "up",
-    signal: "Institutional Buy",
-    signalTone: "blue",
-    updated: "4h ago",
-  },
-  {
-    ticker: "TSLA",
-    company: "Tesla Inc",
-    sector: "Automotive",
-    price: "$175.34",
-    score: 45,
-    scoreChange: "2.1",
-    scoreTrend: "down",
-    signal: "Heavy Distribution",
-    signalTone: "red",
-    updated: "1d ago",
-  },
-  {
-    ticker: "CRWD",
-    company: "CrowdStrike",
-    sector: "Cybersecurity",
-    price: "$310.22",
-    score: 72,
-    scoreChange: "0.0",
-    scoreTrend: "flat",
-    signal: "No recent signals",
-    signalTone: "none",
-    updated: "2d ago",
-  },
-];
+import { WatchlistMonitoredAssets } from "@/components/watchlist/WatchlistMonitoredAssets";
 
 function SignalBadge({
   signal,
@@ -140,7 +90,7 @@ function WatchlistTable() {
 
       <div className="flex items-center justify-between border-b border-[#1E293B] px-4 py-3">
         <h3 className="font-mono text-[12px] uppercase tracking-wider text-[#c2c6d6]">
-          Monitored Assets
+          Monitored WatchlistMonitoredAssets 
         </h3>
 
         <button className="flex items-center gap-1 text-[14px] text-[#c2c6d6] transition-colors hover:text-[#adc6ff]">
@@ -336,7 +286,7 @@ export default function WatchlistPage() {
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <WatchlistTable />
+          <WatchlistMonitoredAssets />
         </div>
 
         <aside className="space-y-6">

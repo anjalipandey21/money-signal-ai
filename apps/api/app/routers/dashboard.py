@@ -85,3 +85,70 @@ def get_recent_institutional_moves():
             "time": "14:05 EST",
         },
     ]
+
+@router.get("/insider-trades")
+def get_recent_insider_trades():
+    return [
+        {
+            "insider": "Tim Cook",
+            "ticker": "AAPL",
+            "role": "CEO",
+            "action": "Sell",
+            "value": "$33.2M",
+            "date": "Today",
+        },
+        {
+            "insider": "Mark Zuckerberg",
+            "ticker": "META",
+            "role": "CEO",
+            "action": "Sell",
+            "value": "$18.5M",
+            "date": "Yesterday",
+        },
+        {
+            "insider": "Jensen Huang",
+            "ticker": "NVDA",
+            "role": "CEO",
+            "action": "Sell",
+            "value": "$24.1M",
+            "date": "2d ago",
+        },
+    ]
+
+@router.get("/ai-market-pulse")
+def get_ai_market_pulse():
+    return {
+        "title": "Smart Money Rotation",
+        "summary": (
+            "Data indicates a significant shift from Megacap Tech into Mid-cap "
+            "Energy. AI sentiment remains net positive but shows exhaustion in "
+            "semiconductor manufacturing."
+        ),
+        "sentimentLabel": "Macro Sentiment",
+        "sentimentScore": 62,
+    }
+
+@router.get("/watchlist-preview")
+def get_watchlist_preview():
+    return [
+        {
+            "ticker": "TSLA",
+            "change": "-1.42%",
+            "trend": "negative",
+        },
+        {
+            "ticker": "AMD",
+            "change": "+3.15%",
+            "trend": "positive",
+        },
+        {
+            "ticker": "AVGO",
+            "change": "+0.88%",
+            "trend": "positive",
+        },
+        {
+            "ticker": "PLTR",
+            "change": "+5.42%",
+            "trend": "positive",
+        },
+    ]
