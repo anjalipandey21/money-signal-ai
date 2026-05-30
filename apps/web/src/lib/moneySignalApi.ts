@@ -59,6 +59,72 @@ export type WatchlistPreviewItem = {
   trend: "positive" | "negative";
 };
 
+export type WatchlistAsset = {
+  ticker: string;
+  companyName: string;
+  sector: string;
+  price: string;
+  change: string;
+  score: number;
+  signal: string;
+  direction: "bullish" | "bearish" | "mixed" | "neutral";
+  alertStatus: string;
+  lastUpdated: string;
+};
+
+export type StockTone =
+  | "positive"
+  | "negative"
+  | "neutral"
+  | "primary"
+  | "secondary";
+
+export type StockFactor = {
+  label: string;
+  value: number;
+  tone: StockTone;
+};
+
+export type StockFundMovement = {
+  institution: string;
+  action: string;
+  sharesChange: string;
+  tone: StockTone;
+};
+
+export type StockInsiderTrade = {
+  insider: string;
+  type: string;
+  value: string;
+  tone: StockTone;
+};
+
+export type StockTimelineEvent = {
+  label: string;
+  time: string;
+  description: string;
+  tone: StockTone;
+};
+
+export type StockDetail = {
+  ticker: string;
+  companyName: string;
+  category: string;
+  price: string;
+  changeAmount: string;
+  changePercent: string;
+  moneySignalScore: number;
+  scoreLabel: string;
+  executiveSummary: string;
+  whyItMatters: string;
+  watchNext: string[];
+  riskNote: string;
+  factorBreakdown: StockFactor[];
+  fundMovement: StockFundMovement[];
+  insiderTrades: StockInsiderTrade[];
+  timeline: StockTimelineEvent[];
+};
+
 function getAuthToken() {
   const session = getAuthSession();
   return session?.token;
@@ -77,7 +143,7 @@ export async function getSignals() {
 }
 
 export async function getWatchlist() {
-  return apiClient<SignalItem[]>("/api/v1/watchlist", {
+  return apiClient<WatchlistAsset[]>("/api/v1/watchlist", {
     authToken: getAuthToken(),
   });
 }
@@ -108,6 +174,12 @@ export async function getAIMarketPulse() {
 
 export async function getWatchlistPreview() {
   return apiClient<WatchlistPreviewItem[]>("/api/v1/dashboard/watchlist-preview", {
+    authToken: getAuthToken(),
+  });
+}
+
+export async function getStockDetail(ticker: string) {
+  return apiClient<StockDetail>(`/api/v1/stocks/${ticker}`, {
     authToken: getAuthToken(),
   });
 }
