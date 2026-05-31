@@ -9,6 +9,7 @@ from app.routers.signals import router as signals_router
 from app.routers.stocks import router as stocks_router
 from app.routers.watchlist import router as watchlist_router
 from app.routers.alerts import router as alerts_router
+from app.routers.scoring import router as scoring_router
 
 from app.models import (Company,
                         Insider,
@@ -49,3 +50,4 @@ app.include_router(signals.router, prefix="/api")
 app.include_router(stocks_router, prefix="/api")
 app.include_router(watchlist_router, prefix="/api")
 app.include_router(alerts_router, prefix="/api")
+app.include_router(scoring_router, prefix="/api")
