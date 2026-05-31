@@ -7,3 +7,5 @@ from app.models.fund import Fund
 from app.models.fund_filing import FundFiling
 from app.models.fund_holding import FundHolding
 from app.models.processed_filing import ProcessedFiling
+from app.models.money_signal_score import MoneySignalScore
+from app.models.ai_insight import AIInsight

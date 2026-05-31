@@ -11,6 +11,9 @@ from app.models import (Company,
                         FundFiling,
                         FundHolding,
                         ProcessedFiling,
+                        Signal,
+                        MoneySignalScore,
+                        AIInsight,
                         )
 
 Base.metadata.create_all(bind=engine)
