@@ -56,8 +56,10 @@ export type AIMarketPulse = {
 export type WatchlistPreviewItem = {
   ticker: string;
   change: string;
-  trend: "positive" | "negative";
+  trend: "positive" | "negative" | "neutral";
 };
+
+export type WatchlistDirection = "bullish" | "bearish" | "mixed" | "neutral";
 
 export type WatchlistAsset = {
   ticker: string;
@@ -67,7 +69,7 @@ export type WatchlistAsset = {
   change: string;
   score: number;
   signal: string;
-  direction: "bullish" | "bearish" | "mixed" | "neutral";
+  direction: WatchlistDirection;
   alertStatus: string;
   lastUpdated: string;
 };
@@ -125,6 +127,17 @@ export type StockDetail = {
   timeline: StockTimelineEvent[];
 };
 
+  export type StockListItem = {
+    ticker: string;
+    companyName: string;
+    category: string;
+    price: string;
+    changeAmount: string;
+    changePercent: string;
+    moneySignalScore: number;
+    scoreLabel: string;
+  };
+
 function getAuthToken() {
   const session = getAuthSession();
   return session?.token;
@@ -136,16 +149,32 @@ export async function getDashboardSummary() {
   });
 }
 
-export async function getSignals() {
-  return apiClient<SignalItem[]>("/api/v1/signals", {
+export type SignalDirectionFilter = "all" | "bullish" | "mixed";
+
+export async function getSignals(direction: SignalDirectionFilter = "all") {
+  const query = direction === "all" ? "" : `?direction=${direction}`;
+
+  return apiClient<SignalItem[]>(`/api/v1/signals${query}`, {
     authToken: getAuthToken(),
   });
 }
 
-export async function getWatchlist() {
-  return apiClient<WatchlistAsset[]>("/api/v1/watchlist", {
+export async function addWatchlistStock(ticker: string) {
+  return apiClient<WatchlistAsset>("/api/v1/watchlist", {
+    method: "POST",
     authToken: getAuthToken(),
+    body: JSON.stringify({ ticker }),
   });
+}
+
+export async function removeWatchlistStock(ticker: string) {
+  return apiClient<{ message: string; removed: WatchlistAsset }>(
+    `/api/v1/watchlist/${ticker}`,
+    {
+      method: "DELETE",
+      authToken: getAuthToken(),
+    }
+  );
 }
 
 export async function getTopMoneySignalScores() {
@@ -172,8 +201,8 @@ export async function getAIMarketPulse() {
   });
 }
 
-export async function getWatchlistPreview() {
-  return apiClient<WatchlistPreviewItem[]>("/api/v1/dashboard/watchlist-preview", {
+export async function getWatchlist() {
+  return apiClient<WatchlistAsset[]>("/api/v1/watchlist", {
     authToken: getAuthToken(),
   });
 }
@@ -182,4 +211,19 @@ export async function getStockDetail(ticker: string) {
   return apiClient<StockDetail>(`/api/v1/stocks/${ticker}`, {
     authToken: getAuthToken(),
   });
+}
+
+export async function getStocks() {
+  return apiClient<StockListItem[]>("/api/v1/stocks", {
+    authToken: getAuthToken(),
+  });
+}
+
+export async function getWatchlistPreview() {
+  return apiClient<WatchlistPreviewItem[]>(
+    "/api/v1/dashboard/watchlist-preview",
+    {
+      authToken: getAuthToken(),
+    }
+  );
 }

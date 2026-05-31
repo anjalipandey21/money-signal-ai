@@ -1,9 +1,13 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
 import { useWatchlistAssets } from "@/hooks/useWatchlistAssets";
-import type { WatchlistAsset } from "@/lib/moneySignalApi";
+import {
+  removeWatchlistStock,
+  type WatchlistAsset,
+} from "@/lib/moneySignalApi";
 
 function signalStyle(direction: WatchlistAsset["direction"]) {
   if (direction === "bullish") {
@@ -42,6 +46,36 @@ function scoreDeltaColor(asset: WatchlistAsset) {
 
 export function WatchlistMonitoredAssets() {
   const { data, isLoading, isUsingFallback } = useWatchlistAssets();
+  const [removingTicker, setRemovingTicker] = useState<string | null>(null);
+  const [removedTickers, setRemovedTickers] = useState<string[]>([]);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+
+  const visibleData = useMemo(() => {
+    return data.filter((asset) => !removedTickers.includes(asset.ticker));
+  }, [data, removedTickers]);
+
+  async function handleRemove(ticker: string) {
+    const confirmed = window.confirm(`Remove ${ticker} from your watchlist?`);
+
+    if (!confirmed) return;
+
+    try {
+      setRemovingTicker(ticker);
+      setRemoveError(null);
+
+      await removeWatchlistStock(ticker);
+
+      setRemovedTickers((current) => [...current, ticker]);
+    } catch (error) {
+      setRemoveError(
+        error instanceof Error
+          ? error.message
+          : "Unable to remove stock right now."
+      );
+    } finally {
+      setRemovingTicker(null);
+    }
+  }
 
   return (
     <div className="relative overflow-hidden rounded-lg border border-[#1E293B] bg-[#111722] transition-all">
@@ -71,6 +105,11 @@ export function WatchlistMonitoredAssets() {
       </div>
 
       <div className="overflow-x-auto">
+        {removeError ? (
+          <div className="border-b border-[#ffb4ab]/30 bg-[#ffb4ab]/10 px-4 py-2 text-sm text-[#ffb4ab]">
+            {removeError}
+          </div>
+        ) : null}
         <table className="w-full table-fixed border-collapse text-left">
           <thead>
             <tr className="border-b border-[#1E293B]">
@@ -95,14 +134,14 @@ export function WatchlistMonitoredAssets() {
               <th className="w-[90px] px-2 py-3 font-mono text-[11px] font-normal uppercase tracking-wider text-[#c2c6d6]">
                 Updated
               </th>
-              <th className="w-[80px] px-2 py-3 text-right font-mono text-[11px] font-normal uppercase tracking-wider text-[#c2c6d6]">
+              <th className="w-[140px] px-2 py-3 text-right font-mono text-[11px] font-normal uppercase tracking-wider text-[#c2c6d6]">
                 Action
               </th>
             </tr>
           </thead>
 
           <tbody className="divide-y divide-[#1E293B]/80">
-            {data.map((asset) => (
+            {visibleData.map((asset) => (
               <tr
                 key={asset.ticker}
                 className="group transition-colors hover:bg-[#181c23]"
@@ -163,13 +202,25 @@ export function WatchlistMonitoredAssets() {
                 </td>
 
                 <td className="px-2 py-4 text-right">
-                  <Link
-                    href={`/stocks/${asset.ticker}`}
-                    className="flex w-full items-center justify-end gap-1 text-[13px] text-[#c2c6d6] transition-colors group-hover:text-[#adc6ff]"
-                  >
-                    View
-                    <MaterialIcon name="chevron_right" className="text-[16px]" />
-                  </Link>
+                  <div className="flex items-center justify-end gap-3">
+                    <Link
+                      href={`/stocks/${asset.ticker}`}
+                      className="flex items-center gap-1 text-[13px] text-[#c2c6d6] transition-colors group-hover:text-[#adc6ff]"
+                    >
+                      View
+                      <MaterialIcon name="chevron_right" className="text-[16px]" />
+                    </Link>
+
+                    <button
+                      type="button"
+                      disabled={removingTicker === asset.ticker}
+                      onClick={() => handleRemove(asset.ticker)}
+                      className="flex items-center gap-1 text-[13px] text-[#ffb4ab] transition hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <MaterialIcon name="delete" className="text-[15px]" />
+                      {removingTicker === asset.ticker ? "Removing" : "Remove"}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

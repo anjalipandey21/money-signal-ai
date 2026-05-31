@@ -1,5 +1,5 @@
 "use client";
-
+import Link from "next/link";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
 import { useTopMoneySignalScores } from "@/hooks/useTopMoneySignalScores";
 import type { TopMoneySignalScore } from "@/lib/moneySignalApi";
@@ -25,12 +25,12 @@ export function TopMoneySignalScores() {
           </span>
         </div>
 
-        <a
+        <Link
+          href="/stocks"
           className="font-mono text-[12px] uppercase tracking-wider text-[#c2c6d6] hover:text-[#adc6ff]"
-          href="#"
         >
           View All Tickers
-        </a>
+        </Link>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -44,6 +44,10 @@ export function TopMoneySignalScores() {
 
 function ScoreCard({ card }: { card: TopMoneySignalScore }) {
   return (
+    <Link
+      href={`/stocks/${card.ticker}`}
+        className="block rounded border border-[#424754]/50 bg-[#181c23] p-4 transition-all hover:border-[#adc6ff]/50 hover:bg-[#1c2027]"
+      >
     <div className="rounded border border-[#424754]/50 bg-[#181c23] p-4 transition-all hover:border-[#adc6ff]/50 hover:bg-[#1c2027]">
       <div className="mb-4 flex items-start justify-between">
         <div>
@@ -74,5 +78,6 @@ function ScoreCard({ card }: { card: TopMoneySignalScore }) {
         </div>
       </div>
     </div>
+    </Link>
   );
 }

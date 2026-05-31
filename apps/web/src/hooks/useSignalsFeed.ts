@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getSignals, type SignalItem } from "@/lib/moneySignalApi";
+import { getSignals, type SignalDirectionFilter, type SignalItem, } from "@/lib/moneySignalApi";
 
 const fallbackSignals: SignalItem[] = [
   {
@@ -66,7 +66,7 @@ const fallbackSignals: SignalItem[] = [
   },
 ];
 
-export function useSignalsFeed() {
+export function useSignalsFeed(direction: SignalDirectionFilter = "all") {
   const [data, setData] = useState<SignalItem[]>(fallbackSignals);
   const [isLoading, setIsLoading] = useState(true);
   const [isUsingFallback, setIsUsingFallback] = useState(false);
@@ -78,7 +78,7 @@ export function useSignalsFeed() {
       try {
         setIsLoading(true);
 
-        const response = await getSignals();
+        const response = await getSignals(direction);
 
         if (!isMounted) return;
 
@@ -103,7 +103,7 @@ export function useSignalsFeed() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [direction]);
 
   return {
     data,

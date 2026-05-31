@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { useWatchlistPreview } from "@/hooks/useWatchlistPreview";
 
@@ -32,14 +33,21 @@ export function DashboardWatchlistPreview() {
           <span className="rounded-[2px] bg-[#262a32] px-2 py-1 font-mono text-[10px] text-[#c2c6d6]">
             ● Semi Feed
           </span>
+            <Link
+              href="/watchlist"
+              className="ml-2 font-mono text-[10px] uppercase tracking-wider text-[#adc6ff] hover:underline"
+            >
+              View Watchlist
+            </Link>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {data.map((item) => (
-          <div
+          <Link
             key={item.ticker}
-            className="rounded-[2px] border border-[#424754]/20 bg-[#0a0e16] p-3"
+            href={`/stocks/${item.ticker}`}
+            className="block rounded-[2px] border border-[#424754]/20 bg-[#0a0e16] p-3 transition-all hover:border-[#adc6ff]/50 hover:bg-[#10131b]"
           >
             <div className="mb-2 flex items-start justify-between">
               <span className="text-[12px] font-bold text-[#e0e2ed]">
@@ -77,7 +85,7 @@ export function DashboardWatchlistPreview() {
                 />
               </svg>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </GlassPanel>

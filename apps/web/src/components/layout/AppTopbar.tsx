@@ -1,14 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
-import { clearAuthSession, getAuthSession, type AuthSession } from "@/lib/authSession";
+import {
+  clearAuthSession,
+  getAuthSession,
+  type AuthSession,
+} from "@/lib/authSession";
 
 export function AppTopbar() {
   const router = useRouter();
+
   const [session, setSession] = useState<AuthSession | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     setSession(getAuthSession());
@@ -18,6 +24,21 @@ export function AppTopbar() {
     clearAuthSession();
     setIsProfileOpen(false);
     router.replace("/login");
+  }
+
+  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const cleanQuery = searchQuery
+      .trim()
+      .toUpperCase()
+      .replace(/^\$/, "")
+      .split(" ")[0];
+
+    if (!cleanQuery) return;
+
+    router.push(`/stocks/${cleanQuery}`);
+    setSearchQuery("");
   }
 
   const userName = session?.user.name || "BD Analyst";
@@ -35,25 +56,37 @@ export function AppTopbar() {
             </span>
           </div>
 
-          <div className="relative hidden w-[360px] md:block">
+          <form
+            onSubmit={handleSearchSubmit}
+            className="relative hidden w-[360px] md:block"
+          >
             <MaterialIcon
               name="search"
               className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-[#8c909f]"
             />
+
             <input
               type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search tickers, funds, or signals..."
               className="w-full rounded border border-[#424754]/50 bg-[#181c23] py-2 pl-10 pr-4 text-[13px] text-[#e0e2ed] outline-none placeholder:text-[#8c909f] transition-all focus:border-[#adc6ff] focus:ring-1 focus:ring-[#adc6ff]/40"
             />
-          </div>
+          </form>
         </div>
 
         <div className="flex items-center gap-3">
-          <button className="flex h-9 w-9 items-center justify-center rounded border border-[#424754]/50 bg-[#181c23] text-[#c2c6d6] transition-colors hover:border-[#adc6ff]/50 hover:text-[#adc6ff]">
+          <button
+            type="button"
+            className="flex h-9 w-9 items-center justify-center rounded border border-[#424754]/50 bg-[#181c23] text-[#c2c6d6] transition-colors hover:border-[#adc6ff]/50 hover:text-[#adc6ff]"
+          >
             <MaterialIcon name="notifications" className="text-[20px]" />
           </button>
 
-          <button className="flex h-9 w-9 items-center justify-center rounded border border-[#424754]/50 bg-[#181c23] text-[#c2c6d6] transition-colors hover:border-[#adc6ff]/50 hover:text-[#adc6ff]">
+          <button
+            type="button"
+            className="flex h-9 w-9 items-center justify-center rounded border border-[#424754]/50 bg-[#181c23] text-[#c2c6d6] transition-colors hover:border-[#adc6ff]/50 hover:text-[#adc6ff]"
+          >
             <MaterialIcon name="settings" className="text-[20px]" />
           </button>
 
