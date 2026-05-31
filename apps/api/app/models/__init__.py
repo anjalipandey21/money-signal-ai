@@ -6,3 +6,4 @@ from app.models.insider_trade import InsiderTrade
 from app.models.fund import Fund
 from app.models.fund_filing import FundFiling
 from app.models.fund_holding import FundHolding
+from app.models.processed_filing import ProcessedFiling
