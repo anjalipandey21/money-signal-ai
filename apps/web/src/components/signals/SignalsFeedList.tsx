@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
 import { useSignalsFeed } from "@/hooks/useSignalsFeed";
-import type { SignalItem } from "@/lib/moneySignalApi";
+import type { SignalDirectionFilter, SignalItem } from "@/lib/moneySignalApi";
 
 function eventBadgeStyle(direction: SignalItem["direction"]) {
   if (direction === "bullish") {
@@ -35,8 +35,12 @@ function scoreColor(direction: SignalItem["direction"]) {
   return "text-[#e0e2ed]";
 }
 
-export function SignalsFeedList() {
-  const { data, isLoading, isUsingFallback } = useSignalsFeed();
+export function SignalsFeedList({
+  direction,
+}: {
+  direction: SignalDirectionFilter;
+}) {
+  const { data, isLoading, isUsingFallback } = useSignalsFeed(direction);
 
   return (
     <div className="overflow-hidden rounded-lg border border-[#424754]/30 bg-[#0a0e16] shadow-sm">

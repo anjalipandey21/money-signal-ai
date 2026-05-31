@@ -144,6 +144,15 @@ function TrustIndicator({
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  function showComingSoon(feature: string) {
+    setNotice(`${feature} is coming soon. For now, use email/password sign in.`);
+
+    window.setTimeout(() => {
+      setNotice(null);
+    }, 3500);
+  }
 
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -210,6 +219,11 @@ export default function LoginPage() {
 
           <div className="mb-8 text-center lg:text-left">
             <h2 className="mb-2 text-[28px] font-semibold tracking-[-0.01em] text-[#e0e2ed]">
+              {notice ? (
+                <div className="mb-5 rounded border border-[#adc6ff]/30 bg-[#adc6ff]/10 px-4 py-3 text-[13px] text-[#adc6ff]">
+                  {notice}
+                </div>
+              ) : null}
               Welcome back
             </h2>
             <p className="text-[16px] text-[#e0e2ed]">
@@ -228,6 +242,7 @@ export default function LoginPage() {
 
               <input
                 id="email"
+                name="email"
                 type="email"
                 placeholder="name@firm.com"
                 className="w-full rounded border border-[#424754] bg-[#181c23] px-4 py-3 text-[16px] text-[#e0e2ed] outline-none placeholder:text-[#8c909f] transition-all focus:border-[#adc6ff] focus:ring-1 focus:ring-[#adc6ff]"
@@ -245,6 +260,7 @@ export default function LoginPage() {
               <div className="relative">
                 <input
                   id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   className="w-full rounded border border-[#424754] bg-[#181c23] px-4 py-3 pr-12 text-[16px] text-[#e0e2ed] outline-none placeholder:text-[#8c909f] transition-all focus:border-[#adc6ff] focus:ring-1 focus:ring-[#adc6ff]"
@@ -275,12 +291,13 @@ export default function LoginPage() {
                 </span>
               </label>
 
-              <a
-                href="#"
+              <button
+                type="button"
+                onClick={() => showComingSoon("Forgot password")}
                 className="text-[14px] text-[#adc6ff] transition-colors hover:underline"
               >
                 Forgot password?
-              </a>
+              </button>
             </div>
 
             <button
@@ -301,6 +318,7 @@ export default function LoginPage() {
             <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
+                onClick={() => showComingSoon("Google sign in")}
                 className="flex items-center justify-center gap-2 rounded border border-[#424754] bg-[#181c23] py-2.5 text-[14px] text-[#e0e2ed] transition-all hover:border-[#adc6ff] hover:bg-[#262a32]"
               >
                 <span className="font-semibold text-[#adc6ff]">G</span>
@@ -309,6 +327,7 @@ export default function LoginPage() {
 
               <button
                 type="button"
+                onClick={() => showComingSoon("GitHub sign in")}
                 className="flex items-center justify-center gap-2 rounded border border-[#424754] bg-[#181c23] py-2.5 text-[14px] text-[#e0e2ed] transition-all hover:border-[#adc6ff] hover:bg-[#262a32]"
               >
                 <MaterialIcon name="terminal" className="text-[18px]" />
@@ -320,12 +339,13 @@ export default function LoginPage() {
           <div className="mt-6 text-center">
             <p className="text-[15px] text-[#c2c6d6]">
               New to MoneySignal AI?{" "}
-              <a
-                href="#"
-                className="font-semibold text-[#adc6ff] transition-colors hover:underline"
-              >
-                Request access
-              </a>
+              <button
+              type="button"
+              onClick={() => showComingSoon("Request access")}
+              className="font-semibold text-[#adc6ff] transition-colors hover:underline"
+            >
+              Request access
+            </button>
             </p>
           </div>
 

@@ -1,186 +1,135 @@
+"use client";
+
+import { useState, type FormEvent } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
 import { WatchlistMonitoredAssets } from "@/components/watchlist/WatchlistMonitoredAssets";
+import { addWatchlistStock } from "@/lib/moneySignalApi";
 
-function SignalBadge({
-  signal,
-  tone,
+function AddStockModal({
+  isOpen,
+  onClose,
+  onAdded,
 }: {
-  signal: string;
-  tone: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onAdded: () => void;
 }) {
-  if (tone === "none") {
-    return (
-      <span className="font-mono text-[12px] text-[#c2c6d6]">
-        {signal}
-      </span>
-    );
-  }
+  const [ticker, setTicker] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const classes =
-    tone === "purple"
-      ? "border-[#6f00be]/40 bg-[#6f00be]/20 text-[#d6a9ff]"
-      : tone === "blue"
-        ? "border-[#4d8eff]/40 bg-[#4d8eff]/20 text-[#adc6ff]"
-        : "border-[#93000a]/40 bg-[#93000a]/20 text-[#ffb4ab]";
+  if (!isOpen) return null;
 
-  return (
-    <span
-      className={`inline-flex items-center rounded border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${classes}`}
-    >
-      {signal}
-    </span>
-  );
-}
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
 
-function ScoreChange({
-  trend,
-  value,
-}: {
-  trend: string;
-  value: string;
-}) {
-  if (trend === "up") {
-    return (
-      <span className="flex items-center text-[11px] text-[#4edea3]">
-        <MaterialIcon name="arrow_upward" className="text-[14px]" />
-        {value}
-      </span>
-    );
-  }
+    const cleanTicker = ticker.trim().toUpperCase();
 
-  if (trend === "down") {
-    return (
-      <span className="flex items-center text-[11px] text-[#ffb4ab]">
-        <MaterialIcon name="arrow_downward" className="text-[14px]" />
-        {value}
-      </span>
-    );
+    if (!cleanTicker) {
+      setError("Please enter a ticker symbol.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setError(null);
+      setSuccessMessage(null);
+
+      await addWatchlistStock(cleanTicker);
+
+      setSuccessMessage(`${cleanTicker} added to your watchlist.`);
+      setTicker("");
+      onAdded();
+
+      window.setTimeout(() => {
+        setSuccessMessage(null);
+        onClose();
+      }, 900);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to add this stock right now."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
-    <span className="flex items-center text-[11px] text-[#c2c6d6]">
-      <MaterialIcon name="remove" className="text-[14px]" />
-      {value}
-    </span>
-  );
-}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded border border-[#424754] bg-[#0D121F] p-6 shadow-[0_0_30px_rgba(59,130,246,0.25)]">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-[22px] font-semibold text-[#e0e2ed]">
+              Add Stock
+            </h2>
+            <p className="mt-1 text-sm text-[#c2c6d6]">
+              Add a ticker to monitor institutional and insider money movement.
+            </p>
+          </div>
 
-function ScoreValue({
-  score,
-  trend,
-}: {
-  score: number;
-  trend: string;
-}) {
-  const color =
-    trend === "up"
-      ? "text-[#4edea3]"
-      : trend === "down"
-        ? "text-[#ffb4ab]"
-        : "text-[#e0e2ed]";
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-1 text-[#c2c6d6] transition hover:bg-[#181c23] hover:text-[#e0e2ed]"
+          >
+            <MaterialIcon name="close" className="text-[20px]" />
+          </button>
+        </div>
 
-  return <span className={`font-mono text-[14px] ${color}`}>{score}</span>;
-}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label
+              htmlFor="ticker"
+              className="mb-2 block font-mono text-[12px] uppercase tracking-wider text-[#c2c6d6]"
+            >
+              Ticker Symbol
+            </label>
 
-function WatchlistTable() {
-  return (
-    <section className="relative overflow-hidden rounded border border-[#1E293B] bg-[#0D121F] transition-all hover:border-[#3B82F6]/50 hover:shadow-[0_0_4px_1px_rgba(59,130,246,0.3)]">
-      <div className="absolute left-0 top-0 h-[2px] w-full bg-gradient-to-r from-transparent via-[#A855F7]/50 to-transparent" />
+            <input
+              id="ticker"
+              value={ticker}
+              onChange={(event) => setTicker(event.target.value.toUpperCase())}
+              placeholder="Example: AAPL, MSFT, GOOGL"
+              className="w-full rounded border border-[#424754] bg-[#10131b] px-4 py-3 font-mono text-[#e0e2ed] outline-none transition placeholder:text-[#8c909f] focus:border-[#adc6ff]"
+            />
+          </div>
 
-      <div className="flex items-center justify-between border-b border-[#1E293B] px-4 py-3">
-        <h3 className="font-mono text-[12px] uppercase tracking-wider text-[#c2c6d6]">
-          Monitored WatchlistMonitoredAssets 
-        </h3>
+          {error ? (
+            <div className="rounded border border-[#ffb4ab]/40 bg-[#ffb4ab]/10 px-3 py-2 text-sm text-[#ffb4ab]">
+              {error}
+            </div>
+          ) : null}
 
-        <button className="flex items-center gap-1 text-[14px] text-[#c2c6d6] transition-colors hover:text-[#adc6ff]">
-          <MaterialIcon name="filter_list" className="text-[16px]" />
-          Filter
-        </button>
+          {successMessage ? (
+            <div className="rounded border border-[#4edea3]/40 bg-[#4edea3]/10 px-3 py-2 text-sm text-[#4edea3]">
+              {successMessage}
+            </div>
+          ) : null}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded border border-[#424754] px-4 py-2 text-sm font-medium text-[#c2c6d6] transition hover:bg-[#181c23] hover:text-[#e0e2ed]"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="rounded bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSubmitting ? "Adding..." : "Add Stock"}
+            </button>
+          </div>
+        </form>
       </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full table-fixed border-collapse text-left">
-          <thead>
-            <tr className="border-b border-[#1E293B]">
-              <th className="w-[70px] px-2 py-3 font-mono text-[12px] font-normal uppercase tracking-wider text-[#c2c6d6]">
-                Ticker
-              </th>
-              <th className="px-2 py-3 font-mono text-[12px] font-normal uppercase tracking-wider text-[#c2c6d6]">
-                Company
-              </th>
-              <th className="w-[100px] px-2 py-3 font-mono text-[12px] font-normal uppercase tracking-wider text-[#c2c6d6]">
-                Sector
-              </th>
-              <th className="w-[90px] px-2 py-3 font-mono text-[12px] font-normal uppercase tracking-wider text-[#c2c6d6]">
-                Price
-              </th>
-              <th className="w-[120px] px-2 py-3 font-mono text-[12px] font-normal uppercase tracking-wider text-[#c2c6d6]">
-                MoneySignal Score
-              </th>
-              <th className="px-2 py-3 font-mono text-[12px] font-normal uppercase tracking-wider text-[#c2c6d6]">
-                Latest Signal
-              </th>
-              <th className="w-[80px] px-2 py-3 font-mono text-[12px] font-normal uppercase tracking-wider text-[#c2c6d6]">
-                Last Updated
-              </th>
-              <th className="w-[80px] px-2 py-3 text-right font-mono text-[12px] font-normal uppercase tracking-wider text-[#c2c6d6]">
-                Action
-              </th>
-            </tr>
-          </thead>
-
-          <tbody className="text-[14px]">
-            {watchlistRows.map((row) => (
-              <tr
-                key={row.ticker}
-                className="group border-b border-[#1E293B] transition-colors last:border-b-0 hover:bg-[#181c23]"
-              >
-                <td className="px-2 py-4">
-                  <div className="inline-block rounded border border-[#424754] bg-[#10131b] px-2 py-1 font-mono text-[14px] text-[#e0e2ed]">
-                    {row.ticker}
-                  </div>
-                </td>
-
-                <td className="whitespace-normal px-2 py-4 font-medium text-[#e0e2ed]">
-                  {row.company}
-                </td>
-
-                <td className="px-2 py-4 text-[#c2c6d6]">
-                  {row.sector}
-                </td>
-
-                <td className="px-2 py-4 font-mono text-[#e0e2ed]">
-                  {row.price}
-                </td>
-
-                <td className="px-2 py-4">
-                  <div className="flex items-center gap-2">
-                    <ScoreValue score={row.score} trend={row.scoreTrend} />
-                    <ScoreChange trend={row.scoreTrend} value={row.scoreChange} />
-                  </div>
-                </td>
-
-                <td className="whitespace-normal px-2 py-4">
-                  <SignalBadge signal={row.signal} tone={row.signalTone} />
-                </td>
-
-                <td className="px-2 py-4 font-mono text-xs text-[#c2c6d6]">
-                  {row.updated}
-                </td>
-
-                <td className="px-2 py-4 text-right">
-                  <button className="flex w-full items-center justify-end gap-1 text-[#c2c6d6] transition-colors group-hover:text-[#adc6ff]">
-                    View
-                    <MaterialIcon name="chevron_right" className="text-[16px]" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+    </div>
   );
 }
 
@@ -211,9 +160,7 @@ function WatchlistIntelligenceCard() {
           <span className="font-mono text-[12px] uppercase tracking-wide text-[#c2c6d6]">
             Portfolio Sentiment
           </span>
-          <span className="text-xs font-medium text-[#4edea3]">
-            Bullish
-          </span>
+          <span className="text-xs font-medium text-[#4edea3]">Bullish</span>
         </div>
 
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#262a32]">
@@ -231,7 +178,10 @@ function SectorHeatmapCard() {
         Coming Soon
       </span>
 
-      <MaterialIcon name="grid_view" className="mb-3 text-[32px] text-[#8c909f]" />
+      <MaterialIcon
+        name="grid_view"
+        className="mb-3 text-[32px] text-[#8c909f]"
+      />
 
       <h3 className="mb-2 text-[18px] font-semibold leading-6 text-[#e0e2ed]">
         Sector Heatmap
@@ -250,6 +200,10 @@ function SectorHeatmapCard() {
 }
 
 export default function WatchlistPage() {
+  const [isAddStockOpen, setIsAddStockOpen] = useState(false);
+  const [watchlistRefreshKey, setWatchlistRefreshKey] = useState(0);
+  const [alertsEnabled, setAlertsEnabled] = useState(true);
+
   return (
     <AppShell activePage="Watchlist">
       <section className="mb-2 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -272,12 +226,26 @@ export default function WatchlistPage() {
           <div className="flex items-center gap-2 text-[14px] text-[#c2c6d6]">
             <span>Alert Settings</span>
 
-            <button className="relative flex h-4 w-8 items-center rounded-full bg-[#4d8eff] px-0.5">
-              <span className="absolute right-0.5 h-3 w-3 rounded-full bg-[#10131b] shadow-sm" />
+            <button
+              type="button"
+              onClick={() => setAlertsEnabled((current) => !current)}
+              className={`relative flex h-4 w-8 items-center rounded-full px-0.5 transition-colors ${
+                alertsEnabled ? "bg-[#4d8eff]" : "bg-[#424754]"
+              }`}
+            >
+              <span
+                className={`absolute h-3 w-3 rounded-full bg-[#10131b] shadow-sm transition-all ${
+                  alertsEnabled ? "right-0.5" : "left-0.5"
+                }`}
+              />
             </button>
           </div>
 
-          <button className="flex items-center gap-2 rounded bg-[#3B82F6] px-4 py-1.5 font-medium text-white transition-colors hover:bg-blue-600">
+          <button
+            type="button"
+            onClick={() => setIsAddStockOpen(true)}
+            className="flex items-center gap-2 rounded bg-[#3B82F6] px-4 py-1.5 font-medium text-white transition-colors hover:bg-blue-600"
+          >
             <MaterialIcon name="add" className="text-sm" />
             Add Stock
           </button>
@@ -286,7 +254,7 @@ export default function WatchlistPage() {
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <WatchlistMonitoredAssets />
+          <WatchlistMonitoredAssets key={watchlistRefreshKey} />
         </div>
 
         <aside className="space-y-6">
@@ -298,6 +266,12 @@ export default function WatchlistPage() {
       <p className="pt-10 text-center text-sm text-[#c2c6d6]">
         Research only. Not financial advice.
       </p>
+
+      <AddStockModal
+        isOpen={isAddStockOpen}
+        onClose={() => setIsAddStockOpen(false)}
+        onAdded={() => setWatchlistRefreshKey((current) => current + 1)}
+      />
     </AppShell>
   );
 }

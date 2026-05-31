@@ -1,3 +1,4 @@
+import Link from "next/link";
 const signalRows = [
   {
     ticker: 'NVDA',
@@ -472,13 +473,20 @@ export default function Home() {
               </nav>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button className="hidden px-4 py-2 text-sm font-medium text-slate-400 transition hover:text-slate-100 sm:block">
+            <div className="flex items-center gap-4">
+              <Link
+                href="/login"
+                className="hidden px-4 py-2 text-sm font-medium text-slate-400 transition hover:text-slate-100 sm:block"
+              >
                 Login
-              </button>
-              <button className="rounded-lg bg-blue-200 px-5 py-2 text-sm font-bold text-blue-950 transition hover:brightness-110 active:scale-95">
+              </Link>
+
+              <Link
+                href="/login"
+                className="rounded-lg bg-blue-200 px-5 py-2 text-sm font-bold text-blue-950 transition hover:brightness-110 active:scale-95"
+              >
                 Get Started
-              </button>
+              </Link>
             </div>
           </div>
         </header>
@@ -507,12 +515,18 @@ export default function Home() {
               </p>
 
               <div className="mt-4 flex flex-wrap justify-center gap-4">
-                <button className="rounded-xl bg-blue-200 px-8 py-4 font-bold text-blue-950 transition hover:shadow-[0_0_40px_rgba(173,198,255,.35)]">
+                <Link
+                  href="/login"
+                  className="rounded-xl bg-blue-200 px-8 py-4 font-bold text-blue-950 transition hover:shadow-[0_0_40px_rgba(173,198,255,.35)]"
+                >
                   Get Early Access ↗
-                </button>
-                <button className="rounded-xl border border-slate-800 px-8 py-4 font-bold text-slate-100 transition hover:bg-slate-900">
-                  View Demo Dashboard
-                </button>
+                </Link>
+                <Link
+                    href="/dashboard"
+                    className="rounded-xl border border-slate-800 px-8 py-4 font-bold text-slate-100 transition hover:bg-slate-900"
+                  >
+                    View Demo Dashboard
+                  </Link>
               </div>
             </div>
 
@@ -832,12 +846,18 @@ export default function Home() {
               </p>
 
               <div className="flex flex-wrap justify-center gap-5">
-                <button className="rounded-xl bg-blue-200 px-10 py-5 text-lg font-bold text-blue-950 transition hover:shadow-[0_0_50px_rgba(173,198,255,.35)]">
+                <Link
+                  href="/login"
+                  className="rounded-xl bg-blue-200 px-10 py-5 text-lg font-bold text-blue-950 transition hover:shadow-[0_0_50px_rgba(173,198,255,.35)]"
+                >
                   Get Early Access 🚀
-                </button>
-                <button className="rounded-xl border border-slate-800 px-10 py-5 text-lg font-bold text-slate-100 transition hover:bg-slate-900">
+                </Link>
+                <Link
+                  href="/dashboard"
+                  className="rounded-xl border border-slate-800 px-10 py-5 text-lg font-bold text-slate-100 transition hover:bg-slate-900"
+                >
                   View Demo Dashboard
-                </button>
+                </Link>
               </div>
 
               <p className="mt-10 font-mono text-[10px] uppercase tracking-[0.2em] text-slate-600">
