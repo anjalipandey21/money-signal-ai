@@ -1,4 +1,3 @@
-from app.models.stock import Stock
 from app.models.signal import Signal
 from app.models.company import Company
 from app.models.insider import Insider

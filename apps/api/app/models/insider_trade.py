@@ -35,6 +35,3 @@ class InsiderTrade(Base):
 
     company = relationship("Company", back_populates="insider_trades")
     insider = relationship("Insider", back_populates="trades")
-
-    insiders = relationship("Insider", back_populates="company")
-    insider_trades = relationship("InsiderTrade", back_populates="company")

@@ -1,8 +1,10 @@
+import os
 from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from app.models import AIInsight, Company, MoneySignalScore, Signal
+from app.services.llm_provider import LLMProviderError, generate_llm_explanation
 
 
 def get_signal_phrase(signal: Signal) -> str:
@@ -122,14 +124,33 @@ def generate_ai_insight_for_company(db: Session, company: Company) -> AIInsight:
         .first()
     )
 
-    summary = build_summary(company, score, signals)
-    why_it_matters = build_why_it_matters(company, signals)
-    watch_next = build_watch_next(signals)
+    company_payload = build_company_payload(company, score, signals)
 
-    limitations = (
-        "This is a research intelligence summary based on public-disclosure-style signals. "
-        "It is not financial advice, not a stock prediction, and not a buy/sell recommendation."
-    )
+    try:
+        llm_result = generate_llm_explanation(company_payload)
+
+        summary = llm_result["summary"]
+        why_it_matters = llm_result["why_it_matters"]
+        watch_next = llm_result["watch_next"]
+        limitations = llm_result["limitations"]
+        provider = os.getenv("LLM_PROVIDER", "template").lower()
+
+        if provider == "openai":
+            model_name = os.getenv("OPENAI_MODEL", "gpt-5.5")
+        elif provider == "gemini":
+            model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+        else:
+            model_name = "money-signal-template-ai-v1"
+
+    except LLMProviderError:
+        summary = build_summary(company, score, signals)
+        why_it_matters = build_why_it_matters(company, signals)
+        watch_next = build_watch_next(signals)
+        limitations = (
+            "This is a research intelligence summary based on public-disclosure-style signals. "
+            "It is not financial advice, not a stock prediction, and not a buy/sell recommendation."
+        )
+        model_name = "money-signal-template-ai-v1"
 
     existing = (
         db.query(AIInsight)
@@ -213,3 +234,30 @@ def generate_ai_insights_for_all_companies(db: Session):
     db.commit()
 
     return results
+
+def build_company_payload(company: Company, score: MoneySignalScore | None, signals: list[Signal]):
+    return {
+        "ticker": company.ticker,
+        "company_name": company.name,
+        "sector": company.sector,
+        "industry": company.industry,
+        "money_signal_score": float(score.score) if score else None,
+        "score_label": score.score_label if score else None,
+        "signals": [
+            {
+                "signal_type": signal.signal_type,
+                "source_type": signal.source_type,
+                "source_name": signal.source_name,
+                "direction": signal.direction,
+                "strength": float(signal.strength or 0),
+                "confidence": float(signal.confidence or 0),
+                "score_impact": float(signal.score_impact or 0),
+                "title": signal.title,
+                "explanation": signal.explanation,
+                "detected_at": signal.detected_at.isoformat()
+                if signal.detected_at
+                else None,
+            }
+            for signal in signals
+        ],
+    }
