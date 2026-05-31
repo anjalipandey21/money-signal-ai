@@ -1,80 +1,51 @@
-type StockSignal = {
-  ticker: string;
-  company_name: string;
-  sector: string;
-  money_signal_score: number;
-  signal_type: string;
-  signal_strength: string;
-  explanation: string;
-};
+import { AppShell } from "@/components/layout/AppShell";
+import { GlassPanel } from "@/components/ui/GlassPanel";
+import { ActionBadge } from "@/components/ui/ActionBadge";
+import { MaterialIcon } from "@/components/ui/MaterialIcon";
+import { TopMoneySignalScores } from "@/components/dashboard/TopMoneySignalScores";
+import { RecentInstitutionalMoves } from "@/components/dashboard/RecentInstitutionalMoves";
+import { RecentInsiderTrades } from "@/components/dashboard/RecentInsiderTrades";
+import { DashboardAIMarketPulse } from "@/components/dashboard/DashboardAIMarketPulse";
+import { DashboardWatchlistPreview } from "@/components/dashboard/DashboardWatchlistPreview";
 
-async function getDashboardSignals(): Promise<StockSignal[]> {
-  const response = await fetch("http://localhost:8001/api/dashboard/signals", {
-    cache: "no-store",
-  });
+function AIAssistantButton() {
+  return (
+    <button className="flex w-full items-center justify-between rounded-[2px] border border-[#424754]/30 bg-[#181c23]/80 p-4 transition hover:border-[#adc6ff]">
+      <div className="flex items-center gap-3">
+        <MaterialIcon name="smart_toy" className="text-[24px] text-[#ddb7ff]" />
+        <div className="text-left">
+          <span className="block text-[12px] font-bold text-[#e0e2ed]">
+            AI Assistant
+          </span>
+          <span className="block font-mono text-[10px] uppercase text-[#c2c6d6]">
+            Institutional Support
+          </span>
+        </div>
+      </div>
 
-  if (!response.ok) {
-    throw new Error("Failed to fetch dashboard signals");
-  }
-
-  return response.json();
+      <MaterialIcon name="arrow_forward" className="text-[22px] text-[#c2c6d6]" />
+    </button>
+  );
 }
 
-export default async function DashboardPage() {
-  const stocks = await getDashboardSignals();
-
+export default function DashboardPage() {
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-8 text-white">
-      <section className="mx-auto max-w-7xl">
-        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-400">
-          MoneySignal AI
-        </p>
+    <AppShell activePage="Dashboard">
 
-        <h1 className="mt-4 text-4xl font-semibold tracking-tight">
-          Smart-Money Dashboard
-        </h1>
+      <TopMoneySignalScores />
 
-        <p className="mt-4 max-w-2xl text-slate-300">
-          Track insider trades, institutional fund movement, and high-signal
-          market activity in one place.
-        </p>
-
-        <div className="mt-10 grid gap-5 md:grid-cols-3">
-          {stocks.map((stock) => (
-            <div
-              key={stock.ticker}
-              className="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-lg"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-2xl font-semibold">{stock.ticker}</h2>
-                  <p className="mt-1 text-sm text-slate-400">
-                    {stock.company_name}
-                  </p>
-                </div>
-
-                <div className="rounded-full bg-emerald-400 px-3 py-1 text-sm font-bold text-slate-950">
-                  {stock.money_signal_score}
-                </div>
-              </div>
-
-              <p className="mt-5 text-sm text-slate-400">{stock.sector}</p>
-
-              <p className="mt-3 text-base font-medium text-emerald-300">
-                {stock.signal_type}
-              </p>
-
-              <p className="mt-2 text-sm text-slate-400">
-                Strength: {stock.signal_strength}
-              </p>
-
-              <p className="mt-4 text-sm leading-6 text-slate-300">
-                {stock.explanation}
-              </p>
-            </div>
-          ))}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="flex flex-col gap-6 lg:col-span-2">
+          <RecentInstitutionalMoves />
+          <RecentInsiderTrades />
+          <DashboardWatchlistPreview />
         </div>
-      </section>
-    </main>
+
+        <div className="flex flex-col gap-6">
+          <DashboardAIMarketPulse />
+          <AIAssistantButton />
+        </div>
+      </div>
+    </AppShell>
   );
 }
