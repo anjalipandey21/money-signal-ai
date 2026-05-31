@@ -44,3 +44,4 @@ class Signal(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     company = relationship("Company", back_populates="signals")
+    alerts = relationship("Alert", back_populates="signal")

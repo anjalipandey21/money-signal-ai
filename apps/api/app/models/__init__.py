@@ -9,3 +9,5 @@ from app.models.fund_holding import FundHolding
 from app.models.processed_filing import ProcessedFiling
 from app.models.money_signal_score import MoneySignalScore
 from app.models.ai_insight import AIInsight
+from app.models.watchlist import Watchlist
+from app.models.alert import Alert

@@ -14,6 +14,8 @@ from app.models import (Company,
                         Signal,
                         MoneySignalScore,
                         AIInsight,
+                        Watchlist,
+                        Alert,
                         )
 
 Base.metadata.create_all(bind=engine)
