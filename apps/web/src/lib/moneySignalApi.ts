@@ -59,6 +59,8 @@ export type WatchlistPreviewItem = {
   trend: "positive" | "negative" | "neutral";
 };
 
+export type WatchlistDirection = "bullish" | "bearish" | "mixed" | "neutral";
+
 export type WatchlistAsset = {
   ticker: string;
   companyName: string;

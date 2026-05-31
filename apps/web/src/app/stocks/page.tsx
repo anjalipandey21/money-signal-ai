@@ -72,7 +72,7 @@ export default function StocksPage() {
 
         if (!isMounted) return;
 
-        setStocks([fallbackStocks]);
+        setStocks(fallbackStocks);
         setIsUsingFallback(true);
       } finally {
         if (isMounted) {
