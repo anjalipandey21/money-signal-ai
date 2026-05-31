@@ -2,9 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db.database import Base, engine
-from app.models import stock, signal
 from app.routers.dashboard import router as dashboard_router
 from app.routers.health import router as health_router
+from app.models import Company, Insider, InsiderTrade, Fund, FundFiling, FundHolding
 
 Base.metadata.create_all(bind=engine)
 
