@@ -1,10 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
 import { useStockDetail } from "@/hooks/useStockDetail";
-import type { StockTone } from "@/lib/moneySignalApi";
+import { addWatchlistStock, type StockTone } from "@/lib/moneySignalApi";
 
 function toneText(tone: StockTone) {
   if (tone === "positive") return "text-[#4edea3]";
@@ -47,6 +48,31 @@ export default function StockDetailPage() {
   const ticker = String(params.ticker || "NVDA").toUpperCase();
   const { data, isLoading, isUsingFallback } = useStockDetail(ticker);
 
+  const [watchlistState, setWatchlistState] = useState<
+    "idle" | "saving" | "added" | "error"
+  >("idle");
+
+  const [watchlistMessage, setWatchlistMessage] = useState<string | null>(null);
+
+  async function handleAddToWatchlist() {
+    try {
+      setWatchlistState("saving");
+      setWatchlistMessage(null);
+
+      await addWatchlistStock(data.ticker);
+
+      setWatchlistState("added");
+      setWatchlistMessage(`${data.ticker} added to watchlist.`);
+    } catch (error) {
+      setWatchlistState("error");
+      setWatchlistMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to add this stock right now."
+      );
+    }
+  }
+
   return (
     <AppShell activePage="Stocks">
       <section className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
@@ -88,10 +114,34 @@ export default function StockDetailPage() {
         </div>
 
         <div className="flex items-center gap-4">
-          <button className="flex items-center justify-center gap-2 rounded border border-[#424754] bg-[#0D121F] px-4 py-2 text-[13px] text-[#e0e2ed] transition-colors hover:bg-[#262a32]">
-            <MaterialIcon name="bookmark_add" className="text-[18px]" />
-            Add to Watchlist
-          </button>
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={handleAddToWatchlist}
+              disabled={watchlistState === "saving" || watchlistState === "added"}
+              className="flex items-center justify-center gap-2 rounded border border-[#424754] bg-[#0D121F] px-4 py-2 text-[13px] text-[#e0e2ed] transition-colors hover:bg-[#262a32] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <MaterialIcon
+                name={watchlistState === "added" ? "check_circle" : "bookmark_add"}
+                className="text-[18px]"
+              />
+              {watchlistState === "saving"
+                ? "Adding..."
+                : watchlistState === "added"
+                  ? "Added"
+                  : "Add to Watchlist"}
+            </button>
+
+            {watchlistMessage ? (
+              <p
+                className={`max-w-[220px] text-[12px] leading-5 ${
+                  watchlistState === "error" ? "text-[#ffb4ab]" : "text-[#4edea3]"
+                }`}
+              >
+                {watchlistMessage}
+              </p>
+            ) : null}
+          </div>
 
           <div className="flex items-center gap-4 rounded-lg border border-[#424754] bg-[#181c23] p-3">
             <div className="relative flex h-14 w-14 items-center justify-center">
