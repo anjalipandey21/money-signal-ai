@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.db.database import Base, engine
 from app.routers.dashboard import router as dashboard_router
 from app.routers.health import router as health_router
-from app.routers import dashboard, signals
 from app.routers.signals import router as signals_router
 from app.routers.stocks import router as stocks_router
 from app.routers.watchlist import router as watchlist_router
@@ -44,7 +43,7 @@ app.add_middleware(
 
 app.include_router(health_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
-app.include_router(signals.router, prefix="/api")
+app.include_router(signals_router, prefix="/api")
 app.include_router(stocks_router, prefix="/api")
 app.include_router(watchlist_router, prefix="/api")
 app.include_router(alerts_router, prefix="/api")
