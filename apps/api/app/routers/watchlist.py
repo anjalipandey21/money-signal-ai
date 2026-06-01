@@ -3,6 +3,10 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.models import Company, MoneySignalScore, Signal, Watchlist
+from app.services.market_data_service import (
+    format_market_snapshot,
+    get_latest_market_snapshot,
+)
 
 router = APIRouter(prefix="/watchlist", tags=["Watchlist"])
 
@@ -42,6 +46,8 @@ def get_watchlist(db: Session = Depends(get_db)):
         )
 
         score_value = float(score.score) if score else 0
+        snapshot = get_latest_market_snapshot(db, company.id)
+        market = format_market_snapshot(snapshot)
 
         result.append(
             {
@@ -50,6 +56,10 @@ def get_watchlist(db: Session = Depends(get_db)):
                 "companyName": company.name,
                 "sector": company.sector,
                 "industry": company.industry,
+                "price": market["price"],
+                "change": market["changePercent"],
+                "changeAmount": market["changeAmount"],
+                "changePercent": market["changePercent"],
                 "moneySignalScore": score_value,
                 "scoreLabel": score.score_label if score else "Monitoring",
                 "trend": score_to_trend(score_value),

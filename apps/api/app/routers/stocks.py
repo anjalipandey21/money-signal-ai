@@ -12,6 +12,10 @@ from app.models import (
     MoneySignalScore,
     Signal,
 )
+from app.services.market_data_service import (
+    format_market_snapshot,
+    get_latest_market_snapshot,
+)
 
 router = APIRouter(prefix="/stocks", tags=["Stocks"])
 
@@ -91,19 +95,26 @@ def list_stocks(db: Session = Depends(get_db)):
         .all()
     )
 
-    return [
-        {
-            "ticker": company.ticker,
-            "companyName": company.name,
-            "category": f"{company.sector or 'Unknown'} / {company.industry or 'Unknown'}",
-            "price": "$--",
-            "changeAmount": "0.00",
-            "changePercent": "0.00%",
-            "moneySignalScore": float(score.score) if score else 0,
-            "scoreLabel": score.score_label if score else "Monitoring",
-        }
-        for company, score in rows
-    ]
+    result = []
+
+    for company, score in rows:
+        snapshot = get_latest_market_snapshot(db, company.id)
+        market = format_market_snapshot(snapshot)
+
+        result.append(
+            {
+                "ticker": company.ticker,
+                "companyName": company.name,
+                "category": f"{company.sector or 'Unknown'} / {company.industry or 'Unknown'}",
+                "price": market["price"],
+                "changeAmount": market["changeAmount"],
+                "changePercent": market["changePercent"],
+                "moneySignalScore": float(score.score) if score else 0,
+                "scoreLabel": score.score_label if score else "Monitoring",
+            }
+        )
+
+    return result
 
 
 @router.get("/{ticker}")
@@ -236,13 +247,16 @@ def get_stock_detail(ticker: str, db: Session = Depends(get_db)):
         for signal in signal_rows
     ]
 
+    snapshot = get_latest_market_snapshot(db, company.id)
+    market = format_market_snapshot(snapshot)
+
     return {
         "ticker": company.ticker,
         "companyName": company.name,
         "category": f"{company.sector or 'Unknown'} / {company.industry or 'Unknown'}",
-        "price": "$--",
-        "changeAmount": "0.00",
-        "changePercent": "0.00%",
+        "price": market["price"],
+        "changeAmount": market["changeAmount"],
+        "changePercent": market["changePercent"],
         "moneySignalScore": score_value,
         "scoreLabel": score.score_label if score else "Monitoring",
         "executiveSummary": insight.summary

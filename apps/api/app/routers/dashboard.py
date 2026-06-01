@@ -13,6 +13,10 @@ from app.models import (
     Signal,
     Watchlist,
 )
+from app.services.market_data_service import (
+    format_market_snapshot,
+    get_latest_market_snapshot,
+)
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -74,16 +78,22 @@ def get_top_money_signal_scores(db: Session = Depends(get_db)):
         .all()
     )
 
-    return [
-        {
-            "ticker": company.ticker,
-            "company": company.name,
-            "price": "$--",
-            "change": "0.0%",
-            "score": float(score.score),
-        }
-        for score, company in rows
-    ]
+    result = []
+
+    for score, company in rows:
+        snapshot = get_latest_market_snapshot(db, company.id)
+        market = format_market_snapshot(snapshot)
+
+        result.append(
+            {
+                "ticker": company.ticker,
+                "company": company.name,
+                "price": market["price"],
+                "change": market["changePercent"],
+                "score": float(score.score),
+            }
+        )
+    return result
 
 
 @router.get("/institutional-moves")
@@ -173,11 +183,24 @@ def get_watchlist_preview(db: Session = Depends(get_db)):
         .all()
     )
 
-    return [
-        {
-            "ticker": company.ticker,
-            "change": "0.0%",
-            "trend": "positive" if float(score.score) >= 70 else "neutral",
-        }
-        for watchlist, company, score in rows
-    ]
+    result = []
+
+    for watchlist, company, score in rows:
+        snapshot = get_latest_market_snapshot(db, company.id)
+        market = format_market_snapshot(snapshot)
+
+        change_percent = market["changePercent"]
+
+        result.append(
+            {
+                "ticker": company.ticker,
+                "change": change_percent,
+                "trend": "negative"
+                if change_percent.startswith("-")
+                else "positive"
+                if not change_percent.startswith("0")
+                else "neutral",
+            }
+        )
+
+    return result
