@@ -99,6 +99,13 @@ type BackendWatchlistAsset = {
   companyName: string;
   sector?: string | null;
   industry?: string | null;
+
+  // Now these come from backend/database market_snapshots
+  price?: string | null;
+  change?: string | null;
+  changeAmount?: string | null;
+  changePercent?: string | null;
+
   moneySignalScore?: number | null;
   scoreLabel?: string | null;
   trend?: string | null;
@@ -106,70 +113,6 @@ type BackendWatchlistAsset = {
   latestSignalType?: string | null;
   latestSignalDirection?: WatchlistDirection | string | null;
   createdAt?: string | null;
-};
-
-type MarketSnapshot = {
-  price: string;
-  change: string;
-  changeAmount: string;
-  changePercent: string;
-};
-
-const DEMO_MARKET_SNAPSHOT: Record<string, MarketSnapshot> = {
-  NVDA: {
-    price: "$875.28",
-    change: "+2.84%",
-    changeAmount: "+24.15",
-    changePercent: "2.84%",
-  },
-  GOOGL: {
-    price: "$174.52",
-    change: "+2.4%",
-    changeAmount: "+4.10",
-    changePercent: "2.4%",
-  },
-  MSFT: {
-    price: "$442.61",
-    change: "+1.2%",
-    changeAmount: "+5.22",
-    changePercent: "1.2%",
-  },
-  META: {
-    price: "$501.24",
-    change: "+1.8%",
-    changeAmount: "+8.84",
-    changePercent: "1.8%",
-  },
-  AAPL: {
-    price: "$189.98",
-    change: "+0.8%",
-    changeAmount: "+1.51",
-    changePercent: "0.8%",
-  },
-  TSLA: {
-    price: "$175.34",
-    change: "-1.4%",
-    changeAmount: "-2.48",
-    changePercent: "-1.4%",
-  },
-  AMD: {
-    price: "$164.20",
-    change: "+3.1%",
-    changeAmount: "+4.95",
-    changePercent: "3.1%",
-  },
-  AVGO: {
-    price: "$1,331.00",
-    change: "+0.8%",
-    changeAmount: "+10.59",
-    changePercent: "0.8%",
-  },
-  PLTR: {
-    price: "$21.84",
-    change: "+5.4%",
-    changeAmount: "+1.12",
-    changePercent: "5.4%",
-  },
 };
 
 export type StockTone =
@@ -281,17 +224,6 @@ function normalizeSignalLabel(value?: string | null) {
   return value.replaceAll("_", " ").toUpperCase();
 }
 
-function getMarketSnapshot(ticker: string): MarketSnapshot {
-  return (
-    DEMO_MARKET_SNAPSHOT[ticker.toUpperCase()] ?? {
-      price: "$--",
-      change: "0.0%",
-      changeAmount: "0.00",
-      changePercent: "0.00%",
-    }
-  );
-}
-
 function mapBackendSignal(signal: BackendSignalItem): SignalItem {
   return {
     id: String(signal.id),
@@ -308,14 +240,15 @@ function mapBackendSignal(signal: BackendSignalItem): SignalItem {
 }
 
 function mapBackendWatchlistAsset(asset: BackendWatchlistAsset): WatchlistAsset {
-  const market = getMarketSnapshot(asset.ticker);
-
   return {
     ticker: asset.ticker,
     companyName: asset.companyName,
     sector: asset.sector || asset.industry || "Unknown",
-    price: market.price,
-    change: market.change,
+
+    // These now come from backend/database only
+    price: asset.price ?? "$--",
+    change: asset.change ?? asset.changePercent ?? "0.00%",
+
     score: Math.round(asset.moneySignalScore ?? 0),
     signal: normalizeSignalLabel(asset.latestSignalType ?? asset.latestSignal),
     direction: normalizeDirection(asset.latestSignalDirection),
@@ -380,21 +313,9 @@ export async function removeWatchlistStock(ticker: string) {
 }
 
 export async function getTopMoneySignalScores() {
-  const response = await apiClient<TopMoneySignalScore[]>(
-    "/api/dashboard/top-scores",
-    {
-      authToken: getAuthToken(),
-    }
-  );
-
-  return response.map((stock) => {
-    const market = getMarketSnapshot(stock.ticker);
-
-    return {
-      ...stock,
-      price: market.price,
-      change: market.change,
-    };
+  // Backend now returns DB-backed market price/change.
+  return apiClient<TopMoneySignalScore[]>("/api/dashboard/top-scores", {
+    authToken: getAuthToken(),
   });
 }
 
@@ -425,34 +346,16 @@ export async function getWatchlist() {
 }
 
 export async function getStockDetail(ticker: string) {
-  const response = await apiClient<StockDetail>(`/api/stocks/${ticker}`, {
+  // Backend now returns DB-backed market price/change.
+  return apiClient<StockDetail>(`/api/stocks/${ticker}`, {
     authToken: getAuthToken(),
   });
-
-  const market = getMarketSnapshot(response.ticker);
-
-  return {
-    ...response,
-    price: market.price,
-    changeAmount: market.changeAmount,
-    changePercent: market.changePercent,
-  };
 }
 
 export async function getStocks() {
-  const response = await apiClient<StockListItem[]>("/api/stocks", {
+  // Backend now returns DB-backed market price/change.
+  return apiClient<StockListItem[]>("/api/stocks", {
     authToken: getAuthToken(),
-  });
-
-  return response.map((stock) => {
-    const market = getMarketSnapshot(stock.ticker);
-
-    return {
-      ...stock,
-      price: market.price,
-      changeAmount: market.changeAmount,
-      changePercent: market.changePercent,
-    };
   });
 }
 
