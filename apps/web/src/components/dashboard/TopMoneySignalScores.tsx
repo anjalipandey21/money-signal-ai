@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
 import { useTopMoneySignalScores } from "@/hooks/useTopMoneySignalScores";
-import type { TopMoneySignalScore } from "@/lib/moneySignalApi";
+import { formatFreshnessLabel, type TopMoneySignalScore, } from "@/lib/moneySignalApi";
 
 export function TopMoneySignalScores() {
   const { data, isLoading, isUsingFallback } = useTopMoneySignalScores();
@@ -77,6 +77,10 @@ function ScoreCard({ card }: { card: TopMoneySignalScore }) {
           {card.change}
         </p>
       </div>
+      <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-[#8c909f]">
+        {formatFreshnessLabel(card.priceFetchedAt, card.marketProvider)}
+      </p>
     </Link>
+    
   );
 }

@@ -99,6 +99,9 @@ export default function StockDetailPage() {
             >
               {isLoading ? "Loading" : isUsingFallback ? "Fallback" : "Live"}
             </span>
+            <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#8c909f]">
+                {data.freshnessLabel}
+              </p>
           </div>
 
           <div className="flex items-baseline gap-3">

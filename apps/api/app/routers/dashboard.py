@@ -90,6 +90,9 @@ def get_top_money_signal_scores(db: Session = Depends(get_db)):
                 "company": company.name,
                 "price": market["price"],
                 "change": market["changePercent"],
+                "marketProvider": market["marketProvider"],
+                "priceFetchedAt": market["priceFetchedAt"],
+                "marketTime": market["marketTime"],
                 "score": float(score.score),
             }
         )
@@ -200,6 +203,9 @@ def get_watchlist_preview(db: Session = Depends(get_db)):
                 else "positive"
                 if not change_percent.startswith("0")
                 else "neutral",
+                "marketProvider": market["marketProvider"],
+                "priceFetchedAt": market["priceFetchedAt"],
+                "marketTime": market["marketTime"],
             }
         )
 

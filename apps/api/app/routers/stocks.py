@@ -109,6 +109,9 @@ def list_stocks(db: Session = Depends(get_db)):
                 "price": market["price"],
                 "changeAmount": market["changeAmount"],
                 "changePercent": market["changePercent"],
+                "marketProvider": market["marketProvider"],
+                "priceFetchedAt": market["priceFetchedAt"],
+                "marketTime": market["marketTime"],
                 "moneySignalScore": float(score.score) if score else 0,
                 "scoreLabel": score.score_label if score else "Monitoring",
             }
@@ -257,7 +260,10 @@ def get_stock_detail(ticker: str, db: Session = Depends(get_db)):
         "price": market["price"],
         "changeAmount": market["changeAmount"],
         "changePercent": market["changePercent"],
-        "moneySignalScore": score_value,
+        "marketProvider": market["marketProvider"],
+        "priceFetchedAt": market["priceFetchedAt"],
+        "marketTime": market["marketTime"],
+        "moneySignalScore": float(score.score) if score else 0,
         "scoreLabel": score.score_label if score else "Monitoring",
         "executiveSummary": insight.summary
         if insight

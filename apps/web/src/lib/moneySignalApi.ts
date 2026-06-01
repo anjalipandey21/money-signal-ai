@@ -45,6 +45,9 @@ export type TopMoneySignalScore = {
   company: string;
   price: string;
   change: string;
+  marketProvider?: string | null;
+  priceFetchedAt?: string | null;
+  marketTime?: string | null;
   score: number;
 };
 
@@ -91,6 +94,10 @@ export type WatchlistAsset = {
   direction: WatchlistDirection;
   alertStatus: string;
   lastUpdated: string;
+  marketProvider?: string | null;
+  priceFetchedAt?: string | null;
+  marketTime?: string | null;
+  freshnessLabel: string;
 };
 
 type BackendWatchlistAsset = {
@@ -113,6 +120,9 @@ type BackendWatchlistAsset = {
   latestSignalType?: string | null;
   latestSignalDirection?: WatchlistDirection | string | null;
   createdAt?: string | null;
+  marketProvider?: string | null;
+  priceFetchedAt?: string | null;
+  marketTime?: string | null;
 };
 
 export type StockTone =
@@ -166,6 +176,10 @@ export type StockDetail = {
   fundMovement: StockFundMovement[];
   insiderTrades: StockInsiderTrade[];
   timeline: StockTimelineEvent[];
+  marketProvider?: string | null;
+  priceFetchedAt?: string | null;
+  marketTime?: string | null;
+  freshnessLabel?: string;
 };
 
 export type StockListItem = {
@@ -177,6 +191,10 @@ export type StockListItem = {
   changePercent: string;
   moneySignalScore: number;
   scoreLabel: string;
+  marketProvider?: string | null;
+  priceFetchedAt?: string | null;
+  marketTime?: string | null;
+  freshnessLabel?: string;
 };
 
 function formatTimeLabel(value?: string | null) {
@@ -254,6 +272,13 @@ function mapBackendWatchlistAsset(asset: BackendWatchlistAsset): WatchlistAsset 
     direction: normalizeDirection(asset.latestSignalDirection),
     alertStatus: asset.scoreLabel || "Monitoring",
     lastUpdated: formatTimeLabel(asset.createdAt),
+    marketProvider: asset.marketProvider,
+    priceFetchedAt: asset.priceFetchedAt,
+    marketTime: asset.marketTime,
+    freshnessLabel: formatFreshnessLabel(
+      asset.priceFetchedAt,
+      asset.marketProvider
+    ),
   };
 }
 
@@ -346,17 +371,31 @@ export async function getWatchlist() {
 }
 
 export async function getStockDetail(ticker: string) {
-  // Backend now returns DB-backed market price/change.
-  return apiClient<StockDetail>(`/api/stocks/${ticker}`, {
+  const response = await apiClient<StockDetail>(`/api/stocks/${ticker}`, {
     authToken: getAuthToken(),
   });
+  
+  return {
+    ...response,
+    freshnessLabel: formatFreshnessLabel(
+      response.priceFetchedAt,
+      response.marketProvider
+    ),
+  };
 }
 
 export async function getStocks() {
-  // Backend now returns DB-backed market price/change.
-  return apiClient<StockListItem[]>("/api/stocks", {
+  const response = await apiClient<StockListItem[]>("/api/stocks", {
     authToken: getAuthToken(),
   });
+
+  return response.map((stock) => ({
+    ...stock,
+    freshnessLabel: formatFreshnessLabel(
+      stock.priceFetchedAt,
+      stock.marketProvider
+    ),
+  }));
 }
 
 export async function getWatchlistPreview() {
@@ -366,4 +405,47 @@ export async function getWatchlistPreview() {
       authToken: getAuthToken(),
     }
   );
+}
+
+export function formatFreshnessLabel(
+  fetchedAt?: string | null,
+  provider?: string | null
+) {
+  const providerLabel = provider
+    ? provider
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ")
+    : "Market source";
+
+  if (!fetchedAt) {
+    return `Price pending · ${providerLabel}`;
+  }
+
+  const date = new Date(fetchedAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return `Fetched recently · ${providerLabel}`;
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60_000));
+
+  if (diffMinutes < 1) {
+    return `Fetched just now · ${providerLabel}`;
+  }
+
+  if (diffMinutes < 60) {
+    return `Fetched ${diffMinutes}m ago · ${providerLabel}`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+
+  if (diffHours < 24) {
+    return `Fetched ${diffHours}h ago · ${providerLabel}`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+
+  return `Fetched ${diffDays}d ago · ${providerLabel}`;
 }

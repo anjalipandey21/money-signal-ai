@@ -201,6 +201,9 @@ export function WatchlistMonitoredAssets() {
                     <p className="font-mono text-[14px] font-semibold text-[#e0e2ed]">
                       {asset.price}
                     </p>
+                     <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-[#8c909f]">
+                      {asset.freshnessLabel}
+                    </p>
 
                     <p
                       className={`mt-1 font-mono text-[11px] ${
