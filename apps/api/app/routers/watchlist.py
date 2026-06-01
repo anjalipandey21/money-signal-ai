@@ -1,177 +1,145 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/api/v1/watchlist", tags=["Watchlist"])
+from app.db.database import get_db
+from app.models import Company, MoneySignalScore, Signal, Watchlist
 
+router = APIRouter(prefix="/watchlist", tags=["Watchlist"])
 
-class WatchlistCreateRequest(BaseModel):
-    ticker: str
-
-
-WATCHLIST_ITEMS = [
-    {
-        "ticker": "NVDA",
-        "companyName": "NVIDIA Corporation",
-        "sector": "Semiconductors",
-        "price": "$128.61",
-        "change": "+4.1%",
-        "score": 92,
-        "signal": "Institutional Accumulation",
-        "direction": "bullish",
-        "alertStatus": "Active",
-        "lastUpdated": "Today, 09:42 EST",
-    },
-    {
-        "ticker": "PLTR",
-        "companyName": "Palantir Technologies",
-        "sector": "AI / Data Analytics",
-        "price": "$21.84",
-        "change": "+2.7%",
-        "score": 94,
-        "signal": "Insider Buy",
-        "direction": "bullish",
-        "alertStatus": "Active",
-        "lastUpdated": "Today, 09:18 EST",
-    },
-    {
-        "ticker": "TSLA",
-        "companyName": "Tesla Inc.",
-        "sector": "Automotive / EV",
-        "price": "$178.92",
-        "change": "-1.2%",
-        "score": 65,
-        "signal": "Position Trimmed",
-        "direction": "neutral",
-        "alertStatus": "Watching",
-        "lastUpdated": "Today, 08:50 EST",
-    },
-    {
-        "ticker": "AMD",
-        "companyName": "Advanced Micro Devices",
-        "sector": "Semiconductors",
-        "price": "$164.30",
-        "change": "+1.8%",
-        "score": 81,
-        "signal": "Options Activity",
-        "direction": "mixed",
-        "alertStatus": "Active",
-        "lastUpdated": "Yesterday, 16:12 EST",
-    },
-]
+DEMO_USER_ID = "demo-user"
 
 
-STOCK_DIRECTORY = {
-    "AAPL": {
-        "companyName": "Apple Inc.",
-        "sector": "Consumer Technology",
-        "price": "$189.43",
-        "change": "+0.9%",
-        "score": 78,
-        "signal": "Steady Accumulation",
-        "direction": "mixed",
-    },
-    "MSFT": {
-        "companyName": "Microsoft Corporation",
-        "sector": "Cloud / AI",
-        "price": "$421.12",
-        "change": "+1.4%",
-        "score": 86,
-        "signal": "Fund Buying",
-        "direction": "bullish",
-    },
-    "GOOGL": {
-        "companyName": "Alphabet Inc.",
-        "sector": "Internet / Advertising",
-        "price": "$174.55",
-        "change": "+0.6%",
-        "score": 83,
-        "signal": "Institutional Interest",
-        "direction": "bullish",
-    },
-    "META": {
-        "companyName": "Meta Platforms",
-        "sector": "Social / AI",
-        "price": "$502.18",
-        "change": "+2.1%",
-        "score": 89,
-        "signal": "AI Momentum",
-        "direction": "bullish",
-    },
-    "AMZN": {
-        "companyName": "Amazon.com Inc.",
-        "sector": "E-commerce / Cloud",
-        "price": "$184.75",
-        "change": "+1.1%",
-        "score": 84,
-        "signal": "Cloud Strength",
-        "direction": "bullish",
-    },
-}
+def score_to_trend(score: float):
+    if score >= 75:
+        return "positive"
+
+    if score >= 60:
+        return "neutral"
+
+    return "negative"
 
 
 @router.get("")
-def get_watchlist():
-    return WATCHLIST_ITEMS
+@router.get("/")
+def get_watchlist(db: Session = Depends(get_db)):
+    rows = (
+        db.query(Watchlist, Company, MoneySignalScore)
+        .join(Company, Watchlist.company_id == Company.id)
+        .outerjoin(MoneySignalScore, MoneySignalScore.company_id == Company.id)
+        .filter(Watchlist.user_id == DEMO_USER_ID)
+        .order_by(MoneySignalScore.score.desc().nullslast())
+        .all()
+    )
 
+    result = []
 
-@router.post("")
-def add_watchlist_item(request: WatchlistCreateRequest):
-    ticker = request.ticker.strip().upper()
-
-    if not ticker:
-        raise HTTPException(status_code=400, detail="Ticker is required")
-
-    already_exists = any(item["ticker"] == ticker for item in WATCHLIST_ITEMS)
-
-    if already_exists:
-        raise HTTPException(
-            status_code=409,
-            detail=f"{ticker} is already in your watchlist",
+    for watchlist_item, company, score in rows:
+        latest_signal = (
+            db.query(Signal)
+            .filter(Signal.company_id == company.id)
+            .order_by(Signal.detected_at.desc())
+            .first()
         )
 
-    stock_data = STOCK_DIRECTORY.get(
-        ticker,
-        {
-            "companyName": f"{ticker} Corporation",
-            "sector": "Unknown",
-            "price": "$--",
-            "change": "0.0%",
-            "score": 70,
-            "signal": "Monitoring Started",
-            "direction": "neutral",
-        },
-    )
+        score_value = float(score.score) if score else 0
 
-    new_item = {
-        "ticker": ticker,
-        "companyName": stock_data["companyName"],
-        "sector": stock_data["sector"],
-        "price": stock_data["price"],
-        "change": stock_data["change"],
-        "score": stock_data["score"],
-        "signal": stock_data["signal"],
-        "direction": stock_data["direction"],
-        "alertStatus": "Active",
-        "lastUpdated": "Just now",
-    }
+        result.append(
+            {
+                "id": watchlist_item.id,
+                "ticker": company.ticker,
+                "companyName": company.name,
+                "sector": company.sector,
+                "industry": company.industry,
+                "moneySignalScore": score_value,
+                "scoreLabel": score.score_label if score else "Monitoring",
+                "trend": score_to_trend(score_value),
+                "latestSignal": latest_signal.title if latest_signal else "No recent signal",
+                "latestSignalType": latest_signal.signal_type if latest_signal else None,
+                "latestSignalDirection": latest_signal.direction if latest_signal else "neutral",
+                "createdAt": watchlist_item.created_at.isoformat()
+                if watchlist_item.created_at
+                else None,
+            }
+        )
 
-    WATCHLIST_ITEMS.insert(0, new_item)
+    return result
 
-    return new_item
 
-@router.delete("/{ticker}")
-def remove_watchlist_item(ticker: str):
+@router.post("/{ticker}")
+def add_to_watchlist(ticker: str, db: Session = Depends(get_db)):
     symbol = ticker.strip().upper()
 
-    for index, item in enumerate(WATCHLIST_ITEMS):
-        if item["ticker"] == symbol:
-            removed_item = WATCHLIST_ITEMS.pop(index)
-            return {
-                "message": f"{symbol} removed from watchlist",
-                "removed": removed_item,
-            }
+    company = db.query(Company).filter(Company.ticker == symbol).first()
 
-    raise HTTPException(
-        status_code=404,
-        detail=f"{symbol} is not in your watchlist",
+    if not company:
+        raise HTTPException(
+            status_code=404,
+            detail=f"{symbol} is not currently tracked",
+        )
+
+    existing = (
+        db.query(Watchlist)
+        .filter(
+            Watchlist.user_id == DEMO_USER_ID,
+            Watchlist.company_id == company.id,
+        )
+        .first()
     )
+
+    if existing:
+        return {
+            "message": f"{symbol} is already in watchlist",
+            "ticker": company.ticker,
+            "watchlistId": existing.id,
+        }
+
+    watchlist_item = Watchlist(
+        user_id=DEMO_USER_ID,
+        company_id=company.id,
+    )
+
+    db.add(watchlist_item)
+    db.commit()
+    db.refresh(watchlist_item)
+
+    return {
+        "message": f"{symbol} added to watchlist",
+        "ticker": company.ticker,
+        "watchlistId": watchlist_item.id,
+    }
+
+
+@router.delete("/{ticker}")
+def remove_from_watchlist(ticker: str, db: Session = Depends(get_db)):
+    symbol = ticker.strip().upper()
+
+    company = db.query(Company).filter(Company.ticker == symbol).first()
+
+    if not company:
+        raise HTTPException(
+            status_code=404,
+            detail=f"{symbol} is not currently tracked",
+        )
+
+    watchlist_item = (
+        db.query(Watchlist)
+        .filter(
+            Watchlist.user_id == DEMO_USER_ID,
+            Watchlist.company_id == company.id,
+        )
+        .first()
+    )
+
+    if not watchlist_item:
+        raise HTTPException(
+            status_code=404,
+            detail=f"{symbol} is not in watchlist",
+        )
+
+    db.delete(watchlist_item)
+    db.commit()
+
+    return {
+        "message": f"{symbol} removed from watchlist",
+        "ticker": company.ticker,
+    }

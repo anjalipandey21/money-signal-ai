@@ -9,6 +9,25 @@ export type DashboardSummary = {
   watchlistCount: number;
 };
 
+type BackendSignalItem = {
+  id: number | string;
+  ticker: string;
+  companyName?: string;
+  sector?: string | null;
+  signalType?: string;
+  sourceType?: string;
+  sourceName?: string | null;
+  direction?: "bullish" | "bearish" | "mixed" | "neutral" | string;
+  strength?: number;
+  confidence?: number;
+  scoreImpact?: number;
+  moneySignalScore?: number | null;
+  scoreLabel?: string | null;
+  title?: string;
+  explanation?: string | null;
+  detectedAt?: string | null;
+};
+
 export type SignalItem = {
   id: string;
   ticker: string;
@@ -144,7 +163,7 @@ function getAuthToken() {
 }
 
 export async function getDashboardSummary() {
-  return apiClient<DashboardSummary>("/api/v1/dashboard/summary", {
+  return apiClient<DashboardSummary>("/api/dashboard/summary", {
     authToken: getAuthToken(),
   });
 }
@@ -154,13 +173,13 @@ export type SignalDirectionFilter = "all" | "bullish" | "mixed";
 export async function getSignals(direction: SignalDirectionFilter = "all") {
   const query = direction === "all" ? "" : `?direction=${direction}`;
 
-  return apiClient<SignalItem[]>(`/api/v1/signals${query}`, {
+  return apiClient<SignalItem[]>(`/api/signals${query}`, {
     authToken: getAuthToken(),
   });
 }
 
 export async function addWatchlistStock(ticker: string) {
-  return apiClient<WatchlistAsset>("/api/v1/watchlist", {
+  return apiClient<WatchlistAsset>("/api/watchlist", {
     method: "POST",
     authToken: getAuthToken(),
     body: JSON.stringify({ ticker }),
@@ -169,7 +188,7 @@ export async function addWatchlistStock(ticker: string) {
 
 export async function removeWatchlistStock(ticker: string) {
   return apiClient<{ message: string; removed: WatchlistAsset }>(
-    `/api/v1/watchlist/${ticker}`,
+    `/api/watchlist/${ticker}`,
     {
       method: "DELETE",
       authToken: getAuthToken(),
@@ -178,50 +197,50 @@ export async function removeWatchlistStock(ticker: string) {
 }
 
 export async function getTopMoneySignalScores() {
-  return apiClient<TopMoneySignalScore[]>("/api/v1/dashboard/top-scores", {
+  return apiClient<TopMoneySignalScore[]>("/api/dashboard/top-scores", {
     authToken: getAuthToken(),
   });
 }
 
 export async function getInstitutionalMoves() {
-  return apiClient<InstitutionalMove[]>("/api/v1/dashboard/institutional-moves", {
+  return apiClient<InstitutionalMove[]>("/api/dashboard/institutional-moves", {
     authToken: getAuthToken(),
   });
 }
 
 export async function getInsiderTrades() {
-  return apiClient<InsiderTrade[]>("/api/v1/dashboard/insider-trades", {
+  return apiClient<InsiderTrade[]>("/api/dashboard/insider-trades", {
     authToken: getAuthToken(),
   });
 }
 
 export async function getAIMarketPulse() {
-  return apiClient<AIMarketPulse>("/api/v1/dashboard/ai-market-pulse", {
+  return apiClient<AIMarketPulse>("/api/dashboard/ai-market-pulse", {
     authToken: getAuthToken(),
   });
 }
 
 export async function getWatchlist() {
-  return apiClient<WatchlistAsset[]>("/api/v1/watchlist", {
+  return apiClient<WatchlistAsset[]>("/api/watchlist", {
     authToken: getAuthToken(),
   });
 }
 
 export async function getStockDetail(ticker: string) {
-  return apiClient<StockDetail>(`/api/v1/stocks/${ticker}`, {
+  return apiClient<StockDetail>(`/api/stocks/${ticker}`, {
     authToken: getAuthToken(),
   });
 }
 
 export async function getStocks() {
-  return apiClient<StockListItem[]>("/api/v1/stocks", {
+  return apiClient<StockListItem[]>("/api/stocks", {
     authToken: getAuthToken(),
   });
 }
 
 export async function getWatchlistPreview() {
   return apiClient<WatchlistPreviewItem[]>(
-    "/api/v1/dashboard/watchlist-preview",
+    "/api/dashboard/watchlist-preview",
     {
       authToken: getAuthToken(),
     }

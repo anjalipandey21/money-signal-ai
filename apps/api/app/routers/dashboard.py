@@ -1,154 +1,183 @@
-from typing import List
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.schemas.signal import DashboardSignalResponse
-from app.services.signal_service import get_dashboard_signals
+from app.models import (
+    AIInsight,
+    Company,
+    Fund,
+    FundHolding,
+    Insider,
+    InsiderTrade,
+    MoneySignalScore,
+    Signal,
+    Watchlist,
+)
 
-router = APIRouter(prefix="/api/v1/dashboard", tags=["Dashboard"])
+router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+
+
+def format_currency(value):
+    if value is None:
+        return "$--"
+
+    value = float(value)
+
+    if value >= 1_000_000_000:
+        return f"${value / 1_000_000_000:.1f}B"
+
+    if value >= 1_000_000:
+        return f"${value / 1_000_000:.1f}M"
+
+    return f"${value:,.0f}"
+
+
+def signal_direction_to_trend(direction: str):
+    if direction == "bullish":
+        return "positive"
+
+    if direction == "bearish":
+        return "negative"
+
+    return "neutral"
 
 
 @router.get("/summary")
-def get_dashboard_summary():
+def get_dashboard_summary(db: Session = Depends(get_db)):
+    active_signals = db.query(Signal).count()
+    bullish_signals = db.query(Signal).filter(Signal.direction == "bullish").count()
+    bearish_signals = db.query(Signal).filter(Signal.direction == "bearish").count()
+    watchlist_count = db.query(Watchlist).filter(Watchlist.user_id == "demo-user").count()
+
+    top_score = (
+        db.query(MoneySignalScore)
+        .order_by(MoneySignalScore.score.desc())
+        .first()
+    )
+
     return {
-        "moneySignalScore": 67,
-        "activeSignals": 24,
-        "bullishSignals": 16,
-        "bearishSignals": 5,
-        "watchlistCount": 8,
+        "moneySignalScore": float(top_score.score) if top_score else 0,
+        "activeSignals": active_signals,
+        "bullishSignals": bullish_signals,
+        "bearishSignals": bearish_signals,
+        "watchlistCount": watchlist_count,
     }
+
 
 @router.get("/top-scores")
-def get_top_money_signal_scores():
+def get_top_money_signal_scores(db: Session = Depends(get_db)):
+    rows = (
+        db.query(MoneySignalScore, Company)
+        .join(Company, MoneySignalScore.company_id == Company.id)
+        .order_by(MoneySignalScore.score.desc())
+        .limit(5)
+        .all()
+    )
+
     return [
         {
-            "ticker": "GOOGL",
-            "company": "Alphabet Inc.",
-            "price": "$174.52",
-            "change": "+2.4%",
-            "score": 99,
-        },
-        {
-            "ticker": "NVDA",
-            "company": "NVIDIA Corp.",
-            "price": "$128.61",
-            "change": "+4.1%",
-            "score": 88,
-        },
-        {
-            "ticker": "MSFT",
-            "company": "Microsoft Corp.",
-            "price": "$442.10",
-            "change": "+0.8%",
-            "score": 85,
-        },
-        {
-            "ticker": "META",
-            "company": "Meta Platforms",
-            "price": "$502.14",
-            "change": "+1.9%",
-            "score": 82,
-        },
+            "ticker": company.ticker,
+            "company": company.name,
+            "price": "$--",
+            "change": "0.0%",
+            "score": float(score.score),
+        }
+        for score, company in rows
     ]
+
 
 @router.get("/institutional-moves")
-def get_recent_institutional_moves():
+def get_recent_institutional_moves(db: Session = Depends(get_db)):
+    rows = (
+        db.query(FundHolding, Fund, Company)
+        .join(Fund, FundHolding.fund_id == Fund.id)
+        .join(Company, FundHolding.company_id == Company.id)
+        .order_by(FundHolding.created_at.desc())
+        .limit(5)
+        .all()
+    )
+
     return [
         {
-            "institution": "BlackRock Inc.",
-            "ticker": "TSLA",
-            "action": "Accumulate",
-            "value": "$0.2B",
-            "time": "09:42 EST",
-        },
-        {
-            "institution": "Vanguard Group",
-            "ticker": "AAPL",
-            "action": "Accumulate",
-            "value": "$840M",
-            "time": "11:15 EST",
-        },
-        {
-            "institution": "Goldman Sachs",
-            "ticker": "NFLX",
-            "action": "Trim",
-            "value": "$420M",
-            "time": "13:22 EST",
-        },
-        {
-            "institution": "JPMorgan Chase",
-            "ticker": "AMD",
-            "action": "Accumulate",
-            "value": "$310M",
-            "time": "14:05 EST",
-        },
+            "institution": fund.name,
+            "ticker": company.ticker,
+            "action": holding.position_status.title() if holding.position_status else "Unknown",
+            "value": format_currency(holding.market_value),
+            "time": "Latest 13F",
+        }
+        for holding, fund, company in rows
     ]
+
 
 @router.get("/insider-trades")
-def get_recent_insider_trades():
+def get_recent_insider_trades(db: Session = Depends(get_db)):
+    rows = (
+        db.query(InsiderTrade, Insider, Company)
+        .join(Insider, InsiderTrade.insider_id == Insider.id)
+        .join(Company, InsiderTrade.company_id == Company.id)
+        .order_by(InsiderTrade.transaction_date.desc())
+        .limit(5)
+        .all()
+    )
+
     return [
         {
-            "insider": "Tim Cook",
-            "ticker": "AAPL",
-            "role": "CEO",
-            "action": "Sell",
-            "value": "$33.2M",
-            "date": "Today",
-        },
-        {
-            "insider": "Mark Zuckerberg",
-            "ticker": "META",
-            "role": "CEO",
-            "action": "Sell",
-            "value": "$18.5M",
-            "date": "Yesterday",
-        },
-        {
-            "insider": "Jensen Huang",
-            "ticker": "NVDA",
-            "role": "CEO",
-            "action": "Sell",
-            "value": "$24.1M",
-            "date": "2d ago",
-        },
+            "insider": insider.name,
+            "ticker": company.ticker,
+            "role": insider.title or "Insider",
+            "action": trade.transaction_type,
+            "value": format_currency(trade.total_value),
+            "date": trade.transaction_date.isoformat(),
+        }
+        for trade, insider, company in rows
     ]
 
+
 @router.get("/ai-market-pulse")
-def get_ai_market_pulse():
+def get_ai_market_pulse(db: Session = Depends(get_db)):
+    top_insight = (
+        db.query(AIInsight, Company, MoneySignalScore)
+        .join(Company, AIInsight.company_id == Company.id)
+        .join(MoneySignalScore, MoneySignalScore.company_id == Company.id)
+        .order_by(MoneySignalScore.score.desc())
+        .first()
+    )
+
+    if not top_insight:
+        return {
+            "title": "No AI insight available",
+            "summary": "Seed the database to generate AI market pulse data.",
+            "sentimentLabel": "Market Pulse",
+            "sentimentScore": 0,
+        }
+
+    insight, company, score = top_insight
+
     return {
-        "title": "Smart Money Rotation",
-        "summary": (
-            "Data indicates a significant shift from Megacap Tech into Mid-cap "
-            "Energy. AI sentiment remains net positive but shows exhaustion in "
-            "semiconductor manufacturing."
-        ),
-        "sentimentLabel": "Macro Sentiment",
-        "sentimentScore": 62,
+        "title": f"{company.ticker} Smart Money Pulse",
+        "summary": insight.summary,
+        "sentimentLabel": score.score_label or "Signal Strength",
+        "sentimentScore": float(score.score),
     }
 
+
 @router.get("/watchlist-preview")
-def get_watchlist_preview():
+def get_watchlist_preview(db: Session = Depends(get_db)):
+    rows = (
+        db.query(Watchlist, Company, MoneySignalScore)
+        .join(Company, Watchlist.company_id == Company.id)
+        .join(MoneySignalScore, MoneySignalScore.company_id == Company.id)
+        .filter(Watchlist.user_id == "demo-user")
+        .order_by(MoneySignalScore.score.desc())
+        .limit(4)
+        .all()
+    )
+
     return [
         {
-            "ticker": "TSLA",
-            "change": "-1.42%",
-            "trend": "negative",
-        },
-        {
-            "ticker": "AMD",
-            "change": "+3.15%",
-            "trend": "positive",
-        },
-        {
-            "ticker": "AVGO",
-            "change": "+0.88%",
-            "trend": "positive",
-        },
-        {
-            "ticker": "PLTR",
-            "change": "+5.42%",
-            "trend": "positive",
-        },
+            "ticker": company.ticker,
+            "change": "0.0%",
+            "trend": "positive" if float(score.score) >= 70 else "neutral",
+        }
+        for watchlist, company, score in rows
     ]
