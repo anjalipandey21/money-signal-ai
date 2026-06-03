@@ -197,6 +197,16 @@ export type StockListItem = {
   freshnessLabel?: string;
 };
 
+export type MarketSnapshotResponse = {
+  ticker: string;
+  price: string;
+  changeAmount: string;
+  changePercent: string;
+  marketProvider?: string | null;
+  priceFetchedAt?: string | null;
+  marketTime?: string | null;
+};
+
 function formatTimeLabel(value?: string | null) {
   if (!value) return "Recently";
 
@@ -450,45 +460,47 @@ export async function getWatchlistPreview() {
   );
 }
 
-export function formatFreshnessLabel(
-  fetchedAt?: string | null,
-  provider?: string | null
-) {
-  const providerLabel = provider
-    ? provider
-        .split("_")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ")
-    : "Market source";
-
-  if (!fetchedAt) {
-    return `Price pending · ${providerLabel}`;
-  }
-
-  const date = new Date(fetchedAt);
-
-  if (Number.isNaN(date.getTime())) {
-    return `Fetched recently · ${providerLabel}`;
-  }
-
-  const diffMs = Date.now() - date.getTime();
-  const diffMinutes = Math.max(0, Math.floor(diffMs / 60_000));
-
-  if (diffMinutes < 1) {
-    return `Fetched just now · ${providerLabel}`;
-  }
-
-  if (diffMinutes < 60) {
-    return `Fetched ${diffMinutes}m ago · ${providerLabel}`;
-  }
-
-  const diffHours = Math.floor(diffMinutes / 60);
-
-  if (diffHours < 24) {
-    return `Fetched ${diffHours}h ago · ${providerLabel}`;
-  }
-
-  const diffDays = Math.floor(diffHours / 24);
-
-  return `Fetched ${diffDays}d ago · ${providerLabel}`;
+export async function getMarketDataHealth() {
+  return apiClient<MarketDataHealthResponse>("/api/data-health/market", {
+    authToken: getAuthToken(),
+  });
 }
+
+export async function refreshMarketSnapshot(ticker: string) {
+  return apiClient<MarketSnapshotResponse>(
+    `/api/market/refresh/${ticker.toUpperCase()}`,
+    {
+      method: "POST",
+      authToken: getAuthToken(),
+    }
+  );
+}
+
+export type MarketDataHealthStatus =
+  | "fresh"
+  | "stale"
+  | "outdated"
+  | "pending";
+
+export type MarketDataHealthSummary = {
+  total: number;
+  fresh: number;
+  stale: number;
+  outdated: number;
+  pending: number;
+};
+
+export type MarketDataHealthItem = {
+  ticker: string;
+  companyName: string;
+  status: MarketDataHealthStatus;
+  provider: string | null;
+  price: number | null;
+  fetchedAt: string | null;
+  ageMinutes: number | null;
+};
+
+export type MarketDataHealthResponse = {
+  summary: MarketDataHealthSummary;
+  items: MarketDataHealthItem[];
+};

@@ -10,3 +10,4 @@ from app.models.money_signal_score import MoneySignalScore
 from app.models.ai_insight import AIInsight
 from app.models.watchlist import Watchlist
 from app.models.alert import Alert
+from app.models.market_snapshot import MarketSnapshot
