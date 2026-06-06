@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, Numeric, String
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -20,14 +20,22 @@ class MarketSnapshot(Base):
 
     symbol = Column(String(20), nullable=False, index=True)
 
-    price = Column(Float, nullable=True)
-    change_amount = Column(Float, nullable=True)
-    change_percent = Column(Float, nullable=True)
+    price = Column(Numeric(18, 4), nullable=True)
+    change_amount = Column(Numeric(18, 4), nullable=True)
+    change_percent = Column(Numeric(10, 4), nullable=True)
 
-    currency = Column(String(10), default="USD")
-    provider = Column(String(50), default="alpha_vantage")
+    currency = Column(String(10), nullable=False, default="USD")
 
+    provider = Column(String(50), nullable=False)
     market_time = Column(DateTime, nullable=True)
-    fetched_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    fetched_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+        index=True,
+    )
+
+    raw_payload = Column(JSON, nullable=True)
 
     company = relationship("Company", back_populates="market_snapshots")
