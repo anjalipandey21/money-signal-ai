@@ -7,6 +7,8 @@ import { RecentInstitutionalMoves } from "@/components/dashboard/RecentInstituti
 import { RecentInsiderTrades } from "@/components/dashboard/RecentInsiderTrades";
 import { DashboardAIMarketPulse } from "@/components/dashboard/DashboardAIMarketPulse";
 import { DashboardWatchlistPreview } from "@/components/dashboard/DashboardWatchlistPreview";
+import { DashboardDataHealthCard } from "@/components/dashboard/DashboardDataHealthCard";
+import { DashboardMarketRefreshCard } from "@/components/dashboard/DashboardMarketRefreshCard";
 
 function AIAssistantButton() {
   return (
@@ -42,6 +44,8 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex flex-col gap-6">
+          <DashboardMarketRefreshCard />
+          <DashboardDataHealthCard />
           <DashboardAIMarketPulse />
           <AIAssistantButton />
         </div>

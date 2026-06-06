@@ -73,6 +73,17 @@ function SidebarLink({
   );
 }
 
+function AISynthesisStatus() {
+  return (
+    <div className="px-4 pb-3">
+      <div className="flex h-9 items-center gap-2 rounded border border-[#A855F7]/70 bg-[#6f00be]/20 px-3 font-mono text-[12px] uppercase tracking-wider text-[#ddb7ff] shadow-[0_0_20px_rgba(168,85,247,0.12)]">
+        <MaterialIcon name="auto_awesome" className="text-[16px]" />
+        <span>AI Synthesis Active</span>
+      </div>
+    </div>
+  );
+}
+
 function DisabledSidebarItem({
   icon,
   label,
@@ -144,6 +155,8 @@ export function AppSidebar({ activePage }: AppSidebarProps) {
             ))}
           </div>
         </div>
+
+        {activePage === "Stocks" ? <AISynthesisStatus /> : null}
 
         {/* Bottom Links */}
         <div className="border-t border-[#424754]/30 py-2">

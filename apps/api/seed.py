@@ -1,5 +1,7 @@
 from datetime import date
 from decimal import Decimal
+from app.models import MarketSnapshot
+from app.models.market_snapshot import MarketSnapshot
 
 from app.db.database import Base, SessionLocal, engine
 from app.models import (
@@ -25,6 +27,7 @@ def seed():
 
     try:
         # Clear demo data in dependency order
+        db.query(MarketSnapshot).delete()
         db.query(Alert).delete()
         db.query(Watchlist).delete()
         db.query(AIInsight).delete()

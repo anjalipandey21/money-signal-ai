@@ -41,3 +41,4 @@ class Company(Base):
     ai_insights = relationship("AIInsight", back_populates="company")
     watchlists = relationship("Watchlist", back_populates="company")
     alerts = relationship("Alert", back_populates="company")
+    market_snapshots = relationship("MarketSnapshot", back_populates="company")
