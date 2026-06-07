@@ -1,3 +1,5 @@
+"use client";
+
 import { AppShell } from "@/components/layout/AppShell";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { ActionBadge } from "@/components/ui/ActionBadge";
@@ -9,6 +11,7 @@ import { DashboardAIMarketPulse } from "@/components/dashboard/DashboardAIMarket
 import { DashboardWatchlistPreview } from "@/components/dashboard/DashboardWatchlistPreview";
 import { DashboardDataHealthCard } from "@/components/dashboard/DashboardDataHealthCard";
 import { DashboardMarketRefreshCard } from "@/components/dashboard/DashboardMarketRefreshCard";
+import { useEffect, useState } from "react";
 
 function AIAssistantButton() {
   return (

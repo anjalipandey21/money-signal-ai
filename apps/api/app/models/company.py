@@ -14,6 +14,7 @@ class Company(Base):
     ticker = Column(String(20), unique=True, index=True, nullable=False)
     name = Column(String(255), nullable=False)
     cik = Column(String(50), unique=True, index=True, nullable=True)
+    cusip = Column(String(20), unique=True, index=True, nullable=True)
 
     sector = Column(String(100), nullable=True)
     industry = Column(String(150), nullable=True)

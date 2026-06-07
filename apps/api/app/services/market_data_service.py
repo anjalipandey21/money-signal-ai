@@ -322,3 +322,46 @@ def format_market_snapshot(snapshot: MarketSnapshot | None):
         if snapshot.market_time
         else None,
     }
+
+def get_price_history(ticker: str, days: int = 30) -> list[dict]:
+    import yfinance as yf
+
+    symbol = ticker.strip().upper()
+
+    if days <= 7:
+        period = "7d"
+        interval = "1d"
+    elif days <= 30:
+        period = "1mo"
+        interval = "1d"
+    elif days <= 90:
+        period = "3mo"
+        interval = "1d"
+    elif days <= 180:
+        period = "6mo"
+        interval = "1d"
+    else:
+        period = "1y"
+        interval = "1d"
+
+    ticker_obj = yf.Ticker(symbol)
+    history = ticker_obj.history(period=period, interval=interval)
+
+    if history.empty:
+        return []
+
+    result = []
+
+    for date, row in history.iterrows():
+        result.append(
+            {
+                "date": date.strftime("%Y-%m-%d"),
+                "open": round(float(row["Open"]), 2),
+                "high": round(float(row["High"]), 2),
+                "low": round(float(row["Low"]), 2),
+                "close": round(float(row["Close"]), 2),
+                "volume": int(row["Volume"]) if row["Volume"] else 0,
+            }
+        )
+
+    return result

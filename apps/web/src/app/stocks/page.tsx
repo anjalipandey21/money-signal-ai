@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
-import { getStocks, type StockListItem } from "@/lib/moneySignalApi";
+import {
+  getStocks,
+  getStockQuotes,
+  type StockListItem,
+  type StockQuoteResponse,
+} from "@/lib/moneySignalApi";
 
 const fallbackStocks: StockListItem[] = [
   {
@@ -53,40 +58,80 @@ export default function StocksPage() {
   const [stocks, setStocks] = useState<StockListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUsingFallback, setIsUsingFallback] = useState(false);
+  const [liveQuotes, setLiveQuotes] = useState<Record<string, StockQuoteResponse>>({});
 
+  useEffect(() => {
+  let isMounted = true;
+
+  async function loadStocks() {
+    try {
+      setIsLoading(true);
+
+      const data = await getStocks();
+
+      if (!isMounted) return;
+
+      setStocks(data);
+      setIsUsingFallback(false);
+    } catch (error) {
+      console.error("Failed to load stocks:", error);
+
+      if (!isMounted) return;
+
+      setStocks(fallbackStocks);
+      setIsUsingFallback(true);
+    } finally {
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    }
+  }
+
+  loadStocks();
+
+  return () => {
+    isMounted = false;
+  };
+}, []);
+  
   useEffect(() => {
     let isMounted = true;
 
-    async function loadStocks() {
+    async function loadLiveQuotes() {
       try {
-        setIsLoading(true);
+        const tickers = Array.from(
+          new Set(stocks.map((stock) => stock.ticker).filter(Boolean))
+        );
 
-        const response = await getStocks();
+        if (tickers.length === 0) return;
+
+        const quotes = await getStockQuotes(tickers);
 
         if (!isMounted) return;
 
-        setStocks(response);
-        setIsUsingFallback(false);
+        const quoteMap = quotes.reduce<Record<string, StockQuoteResponse>>(
+          (acc, quote) => {
+            if (!quote.error) {
+              acc[quote.ticker] = quote;
+            }
+            return acc;
+          },
+          {}
+        );
+
+        setLiveQuotes(quoteMap);
       } catch (error) {
-        console.error("Failed to load stocks:", error);
-
-        if (!isMounted) return;
-
-        setStocks(fallbackStocks);
-        setIsUsingFallback(true);
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        console.error("Failed to load stock list live quotes:", error);
       }
     }
 
-    loadStocks();
+    loadLiveQuotes();
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [stocks]);
+  
 
   return (
     <AppShell activePage="Stocks">
@@ -113,7 +158,13 @@ export default function StocksPage() {
       </section>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {stocks.map((stock) => (
+        {stocks.map((stock) => {
+            const quote = liveQuotes[stock.ticker];
+            const displayPrice = quote?.price ?? stock.price;
+            const displayChangePercent = quote?.changePercent ?? stock.changePercent;
+            const displayFreshness = quote?.freshnessLabel ?? stock.freshnessLabel;
+            const isNegative = displayChangePercent.startsWith("-");
+            return (
           <Link
             key={stock.ticker}
             href={`/stocks/${stock.ticker}`}
@@ -144,18 +195,23 @@ export default function StocksPage() {
                   Price
                 </p>
                 <p className="mt-1 text-[18px] font-semibold text-[#e0e2ed]">
-                  {stock.price}
+                  {displayPrice}
                 </p>
+                {displayFreshness ? (
+                  <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-[#8c909f]">
+                    {displayFreshness}
+                  </p>
+                ) : null}
               </div>
 
               <p
                 className={`font-mono text-[13px] ${
-                  stock.changePercent.startsWith("-")
+                  isNegative
                     ? "text-[#ffb4ab]"
                     : "text-[#4edea3]"
                 }`}
               >
-                {stock.changePercent}
+                {displayChangePercent}
               </p>
             </div>
 
@@ -169,7 +225,8 @@ export default function StocksPage() {
               </span>
             </div>
           </Link>
-        ))}
+          );
+        })}
       </section>
 
       {!isLoading && stocks.length === 0 ? (

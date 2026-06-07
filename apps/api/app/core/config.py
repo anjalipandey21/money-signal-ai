@@ -43,5 +43,41 @@ class Settings:
             20,
         )
 
+        self.SEC_USER_AGENT = os.getenv(
+            "SEC_USER_AGENT",
+            "MoneySignalAI/0.1 your_email@example.com",
+        )
+
+        self.SEC_REQUEST_TIMEOUT_SECONDS = _int_env(
+            "SEC_REQUEST_TIMEOUT_SECONDS",
+            20,
+        )
+
+        self.SEC_MAX_FILINGS = _int_env(
+            "SEC_MAX_FILINGS",
+            25,
+        )
+
+        self.SCHEDULER_ENABLED = os.getenv("SCHEDULER_ENABLED", "false").lower() == "true"
+
+        self.SCRAPER_SCHEDULE_HOURS = _int_env(
+            "SCRAPER_SCHEDULE_HOURS",
+            6,
+        )
+
+        self.SCRAPER_DAYS_BACK = _int_env(
+            "SCRAPER_DAYS_BACK",
+            30,
+        )
+
+        self.SCRAPER_MAX_FILINGS = _int_env(
+            "SCRAPER_MAX_FILINGS",
+            10,
+        )
+
+        self.SCRAPER_COOLDOWN_HOURS = _int_env(
+            "SCRAPER_COOLDOWN_HOURS",
+            6,
+        )
 
 settings = Settings()

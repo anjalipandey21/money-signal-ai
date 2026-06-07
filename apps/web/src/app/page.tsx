@@ -527,6 +527,12 @@ export default function Home() {
                   >
                     View Demo Dashboard
                   </Link>
+                <Link
+                  href="/market"
+                  className="rounded-full border border-white/30 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  Market Overview
+                </Link>
               </div>
             </div>
 
