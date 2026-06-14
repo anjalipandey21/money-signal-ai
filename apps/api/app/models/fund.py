@@ -12,7 +12,7 @@ class Fund(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     name = Column(String(255), nullable=False, index=True)
-    cik = Column(String(50), unique=True, index=True, nullable=True)
+    cik = Column(String(50), index=True, nullable=True)
 
     manager_name = Column(String(255), nullable=True)
     fund_type = Column(String(100), nullable=True)

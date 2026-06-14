@@ -1,7 +1,13 @@
+import yfinance as yf
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from datetime import datetime
-import yfinance as yf
+from sqlalchemy import or_
+from app.services.stock_universe_service import (
+    import_stock_universe,
+    StockUniverseError,
+)
+from app.services.market_data_service import refresh_market_snapshot
 
 from app.db.database import get_db
 from app.models import (
@@ -17,9 +23,11 @@ from app.models import (
 )
 from app.services.market_data_service import (
     format_market_snapshot,
+    get_latest_market_snapshot,
     get_or_refresh_market_snapshot,
     MarketDataError,
     get_price_history,
+    refresh_market_snapshot,
 )
 
 router = APIRouter(prefix="/stocks", tags=["Stocks"])
@@ -116,19 +124,52 @@ def _get_stock_profile_from_yfinance(symbol: str) -> dict:
 
 @router.get("")
 @router.get("/")
-def list_stocks(db: Session = Depends(get_db)):
-    rows = (
+def list_stocks(
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    search: str | None = Query(None, description="Search ticker or company name"),
+    refresh: bool = Query(False, description="Refresh visible rows from live provider"),
+    db: Session = Depends(get_db),
+):
+    query = (
         db.query(Company, MoneySignalScore)
         .outerjoin(MoneySignalScore, MoneySignalScore.company_id == Company.id)
-        .order_by(MoneySignalScore.score.desc().nullslast())
+    )
+
+    if search:
+        pattern = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                Company.ticker.ilike(pattern),
+                Company.name.ilike(pattern),
+            )
+        )
+
+    rows = (
+        query
+        .order_by(MoneySignalScore.score.desc().nullslast(), Company.ticker.asc())
+        .offset(offset)
+        .limit(limit)
         .all()
     )
 
     result = []
 
     for company, score in rows:
-        snapshot = get_or_refresh_market_snapshot(db, company)
-        market = format_market_snapshot(snapshot)
+        try:
+            if refresh:
+                snapshot = get_or_refresh_market_snapshot(
+                    db,
+                    company,
+                    force_refresh=True,
+                )
+            else:
+                snapshot = get_latest_market_snapshot(db, company.id)
+
+            market = format_market_snapshot(snapshot)
+
+        except Exception:
+            market = format_market_snapshot(None)
 
         result.append(
             {
@@ -141,8 +182,8 @@ def list_stocks(db: Session = Depends(get_db)):
                 "marketProvider": market["marketProvider"],
                 "priceFetchedAt": market["priceFetchedAt"],
                 "marketTime": market["marketTime"],
-                "moneySignalScore": float(score.score) if score else 0,
-                "scoreLabel": score.score_label if score else "Monitoring",
+                "moneySignalScore": float(score.score) if score and score.score is not None else 0,
+                "scoreLabel": score.score_label if score and score.score_label else "Monitoring",
             }
         )
 
@@ -497,6 +538,145 @@ def track_stock(
         "changePercent": market["changePercent"],
         "marketProvider": market["marketProvider"],
         "priceFetchedAt": market["priceFetchedAt"],
+    }
+
+@router.post("/universe/import")
+def import_universe(
+    limit: int = Query(500, ge=1, le=5000),
+    include_funds: bool = Query(False),
+    db: Session = Depends(get_db),
+):
+    try:
+        return import_stock_universe(
+            db,
+            limit=limit,
+            include_funds=include_funds,
+        )
+
+    except StockUniverseError as error:
+        db.rollback()
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+    except Exception as error:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(error)) from error
+
+
+@router.post("/quotes/refresh-tracked")
+def refresh_tracked_quotes(
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    companies = (
+        db.query(Company)
+        .order_by(Company.ticker.asc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    results = []
+
+    for company in companies:
+        try:
+            snapshot = refresh_market_snapshot(db, company.ticker)
+            market = format_market_snapshot(snapshot)
+
+            results.append(
+                {
+                    "ticker": company.ticker,
+                    "status": "success",
+                    "price": market["price"],
+                    "changePercent": market["changePercent"],
+                    "provider": market["marketProvider"],
+                    "priceFetchedAt": market["priceFetchedAt"],
+                }
+            )
+
+        except Exception as error:
+            results.append(
+                {
+                    "ticker": company.ticker,
+                    "status": "failed",
+                    "error": str(error),
+                }
+            )
+
+    return {
+        "count": len(results),
+        "results": results,
+    }
+
+@router.post("/universe/import")
+def import_universe(
+    limit: int = Query(500, ge=1, le=5000),
+    include_funds: bool = Query(False),
+    include_otc: bool = Query(False),
+    db: Session = Depends(get_db),
+):
+    try:
+        return import_stock_universe(
+            db,
+            limit=limit,
+            include_funds=include_funds,
+            include_otc=include_otc,
+        )
+
+    except StockUniverseError as error:
+        db.rollback()
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+    except Exception as error:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(error)) from error
+
+
+@router.post("/quotes/refresh-tracked")
+def refresh_tracked_quotes(
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    companies = (
+        db.query(Company)
+        .order_by(Company.ticker.asc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    results = []
+
+    for company in companies:
+        try:
+            snapshot = refresh_market_snapshot(db, company.ticker)
+            market = format_market_snapshot(snapshot)
+
+            results.append(
+                {
+                    "ticker": company.ticker,
+                    "status": "success",
+                    "price": market["price"],
+                    "changePercent": market["changePercent"],
+                    "provider": market["marketProvider"],
+                    "priceFetchedAt": market["priceFetchedAt"],
+                }
+            )
+
+        except Exception as error:
+            db.rollback()
+            results.append(
+                {
+                    "ticker": company.ticker,
+                    "status": "failed",
+                    "error": str(error),
+                }
+            )
+
+    return {
+        "count": len(results),
+        "results": results,
     }
 
 @router.get("/{ticker}")

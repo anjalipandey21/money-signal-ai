@@ -11,6 +11,7 @@ import {
   type StockQuoteResponse,
 } from "@/lib/moneySignalApi";
 
+
 const fallbackStocks: StockListItem[] = [
   {
     ticker: "GOOGL",
@@ -125,13 +126,15 @@ export default function StocksPage() {
       }
     }
 
-    loadLiveQuotes();
+  loadLiveQuotes();
 
-    return () => {
-      isMounted = false;
-    };
-  }, [stocks]);
-  
+  const intervalId = window.setInterval(loadLiveQuotes, 60_000);
+
+  return () => {
+    isMounted = false;
+    window.clearInterval(intervalId);
+  };
+}, [stocks]);
 
   return (
     <AppShell activePage="Stocks">
@@ -161,7 +164,7 @@ export default function StocksPage() {
         {stocks.map((stock) => {
             const quote = liveQuotes[stock.ticker];
             const displayPrice = quote?.price ?? stock.price;
-            const displayChangePercent = quote?.changePercent ?? stock.changePercent;
+            const displayChangePercent = quote?.changePercent ?? stock.changePercent ?? "0.00%";
             const displayFreshness = quote?.freshnessLabel ?? stock.freshnessLabel;
             const isNegative = displayChangePercent.startsWith("-");
             return (

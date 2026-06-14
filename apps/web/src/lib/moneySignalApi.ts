@@ -437,10 +437,22 @@ export async function getStockDetail(ticker: string) {
   };
 }
 
-export async function getStocks() {
-  const response = await apiClient<StockListItem[]>("/api/stocks", {
-    authToken: getAuthToken(),
+export async function getStocks(limit = 100, offset = 0, search = "") {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
   });
+
+  if (search.trim()) {
+    params.set("search", search.trim());
+  }
+
+  const response = await apiClient<StockListItem[]>(
+    `/api/stocks?${params.toString()}`,
+    {
+      authToken: getAuthToken(),
+    }
+  );
 
   return response.map((stock) => ({
     ...stock,
@@ -581,6 +593,41 @@ export async function getScrapeHistory(limit = 25) {
   );
 }
 
+export async function importStockUniverse(limit = 500) {
+  return apiClient<StockUniverseImportResponse>(
+    `/api/stocks/universe/import?limit=${limit}`,
+    {
+      method: "POST",
+      authToken: getAuthToken(),
+    }
+  );
+}
+
+export async function refreshTrackedStockQuotes(limit = 100, offset = 0) {
+  return apiClient<{
+    count: number;
+    results: {
+      ticker: string;
+      status: string;
+      price?: string;
+      changePercent?: string;
+      provider?: string | null;
+      priceFetchedAt?: string | null;
+      error?: string;
+    }[];
+  }>(`/api/stocks/quotes/refresh-tracked?limit=${limit}&offset=${offset}`, {
+    method: "POST",
+    authToken: getAuthToken(),
+  });
+}
+
+export async function trackStock(ticker: string) {
+  return apiClient<unknown>(`/api/stocks/track/${ticker.toUpperCase()}`, {
+    method: "POST",
+    authToken: getAuthToken(),
+  });
+}
+
 export type MarketDataHealthStatus =
   | "fresh"
   | "stale"
@@ -709,4 +756,13 @@ export type SchedulerStatusResponse = {
   scheduleHours: number;
   maxFilings: number;
   cooldownHours: number;
+};
+
+export type StockUniverseImportResponse = {
+  status: string;
+  scanned: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  limit: number;
 };
