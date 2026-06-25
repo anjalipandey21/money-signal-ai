@@ -578,6 +578,33 @@ export async function runSchedulerScrape(ticker: string, limit = 10) {
   );
 }
 
+export async function runFullIngestionPipeline({
+  form4Limit = 5,
+  thirteenFLimit = 3,
+  refreshMarket = true,
+  timeoutMs = 60_000,
+}: {
+  form4Limit?: number;
+  thirteenFLimit?: number;
+  refreshMarket?: boolean;
+  timeoutMs?: number;
+} = {}) {
+  const params = new URLSearchParams({
+    form4_limit: String(form4Limit),
+    thirteen_f_limit: String(thirteenFLimit),
+    refresh_market: String(refreshMarket),
+  });
+
+  return apiClient<FullIngestionPipelineResponse>(
+    `/api/scheduler/run-ingestion?${params.toString()}`,
+    {
+      method: "POST",
+      authToken: getAuthToken(),
+      timeoutMs,
+    }
+  );
+}
+
 export async function getSchedulerStatus() {
   return apiClient<SchedulerStatusResponse>("/api/scheduler/status", {
     authToken: getAuthToken(),
@@ -585,9 +612,38 @@ export async function getSchedulerStatus() {
 }
 
 export async function getScrapeHistory(limit = 25) {
-  return apiClient<ScrapeHistoryItem[]>(
+  const response = await apiClient<ScrapeHistoryResponse>(
     `/api/scraper/history?limit=${limit}`,
     {
+      authToken: getAuthToken(),
+    }
+  );
+
+  return response.items;
+}
+
+export async function importSecCompanyUniverse({
+  limit = 100,
+  enrichProfile = false,
+  includeFunds = false,
+  includeOtc = false,
+}: {
+  limit?: number;
+  enrichProfile?: boolean;
+  includeFunds?: boolean;
+  includeOtc?: boolean;
+} = {}) {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    enrich_profile: String(enrichProfile),
+    include_funds: String(includeFunds),
+    include_otc: String(includeOtc),
+  });
+
+  return apiClient<SecCompanyUniverseImportResponse>(
+    `/api/scraper/sec-company-universe/import?${params.toString()}`,
+    {
+      method: "POST",
       authToken: getAuthToken(),
     }
   );
@@ -755,6 +811,8 @@ export type SchedulerStatusResponse = {
   }[];
   scheduleHours: number;
   maxFilings: number;
+  thirteenFMaxFilings?: number;
+  refreshMarket?: boolean;
   cooldownHours: number;
 };
 
@@ -765,4 +823,55 @@ export type StockUniverseImportResponse = {
   updated: number;
   skipped: number;
   limit: number;
+};
+
+export type SecCompanyUniverseImportResponse = StockUniverseImportResponse & {
+  success: boolean;
+  source: string;
+  duplicateCikSkipped: number;
+  enrichProfile: boolean;
+  startedAt: string;
+  completedAt: string;
+  durationSeconds: number;
+};
+
+export type ScrapeHistoryResponse = {
+  success: boolean;
+  count: number;
+  items: ScrapeHistoryItem[];
+};
+
+export type IngestionStageResult = {
+  stage: string;
+  success: boolean;
+  attempted: number;
+  processed: number;
+  skipped: number;
+  failed: number;
+  recordsCreated: number;
+  errors: {
+    ticker?: string;
+    fund?: string;
+    cik?: string;
+    accessionNumber?: string;
+    error: string;
+  }[];
+};
+
+export type FullIngestionPipelineResponse = {
+  success: boolean;
+  status: string;
+  startedAt: string;
+  completedAt: string;
+  durationSeconds: number;
+  companiesFound?: number;
+  fundsFound?: number;
+  stages?: IngestionStageResult[];
+  totals?: {
+    processed: number;
+    skipped: number;
+    failed: number;
+    recordsCreated: number;
+  };
+  error?: string;
 };

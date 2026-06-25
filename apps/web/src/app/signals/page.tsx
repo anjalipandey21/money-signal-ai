@@ -48,25 +48,26 @@ export default function SignalsPage() {
             </p>
 
             <p className="mt-2 text-[13px] text-[#8c909f]">
-              1,204 signals detected in the last 24 hours.
+              Filter by signal direction to review confidence, source, and AI
+              context.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <FilterButton icon="filter_list" onClick={() => setDirection("all")}>
-              All Types
+              All Signals
             </FilterButton>
 
             <FilterButton onClick={() => setDirection("bullish")}>
-              Score: &gt; 80
+              Bullish
+            </FilterButton>
+
+            <FilterButton onClick={() => setDirection("bearish")}>
+              Bearish
             </FilterButton>
 
             <FilterButton onClick={() => setDirection("mixed")}>
-              Time: 24h
-            </FilterButton>
-
-            <FilterButton onClick={() => setDirection("all")}>
-              Source Type
+              Mixed
             </FilterButton>
 
             <button

@@ -55,6 +55,49 @@ const fallbackStocks: StockListItem[] = [
   },
 ];
 
+function signalTone(stock: StockListItem) {
+  const label = stock.scoreLabel.toLowerCase();
+
+  if (stock.moneySignalScore >= 75 || label.includes("bullish")) {
+    return {
+      label: "Bullish",
+      className: "border-[#4edea3]/30 bg-[#4edea3]/10 text-[#4edea3]",
+    };
+  }
+
+  if (stock.moneySignalScore <= 40 || label.includes("bearish")) {
+    return {
+      label: "Bearish",
+      className: "border-[#ffb4ab]/30 bg-[#ffb4ab]/10 text-[#ffb4ab]",
+    };
+  }
+
+  return {
+    label: "Neutral",
+    className: "border-[#8c909f]/40 bg-[#8c909f]/10 text-[#c2c6d6]",
+  };
+}
+
+function sourceLabel(stock: StockListItem, quote?: StockQuoteResponse) {
+  if (quote?.marketProvider || stock.marketProvider) {
+    return "Market";
+  }
+
+  if (stock.priceFetchedAt || quote?.priceFetchedAt) {
+    return "Market";
+  }
+
+  return "MoneySignal";
+}
+
+function stockReason(stock: StockListItem) {
+  if (stock.scoreLabel && stock.scoreLabel !== "Monitoring") {
+    return `${stock.scoreLabel} MoneySignal profile based on tracked public signals.`;
+  }
+
+  return "Monitoring for market, Form 4, 13F, and AI signal updates.";
+}
+
 export default function StocksPage() {
   const [stocks, setStocks] = useState<StockListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -167,6 +210,7 @@ export default function StocksPage() {
             const displayChangePercent = quote?.changePercent ?? stock.changePercent ?? "0.00%";
             const displayFreshness = quote?.freshnessLabel ?? stock.freshnessLabel;
             const isNegative = displayChangePercent.startsWith("-");
+            const tone = signalTone(stock);
             return (
           <Link
             key={stock.ticker}
@@ -188,6 +232,17 @@ export default function StocksPage() {
                 name="open_in_new"
                 className="text-[18px] text-[#8c909f] opacity-0 transition group-hover:opacity-100"
               />
+            </div>
+
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <span
+                className={`rounded border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${tone.className}`}
+              >
+                {tone.label}
+              </span>
+              <span className="rounded border border-[#424754]/50 bg-[#0d121f] px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[#c2c6d6]">
+                Source: {sourceLabel(stock, quote)}
+              </span>
             </div>
 
             <p className="mb-4 text-sm text-[#8c909f]">{stock.category}</p>
@@ -219,11 +274,16 @@ export default function StocksPage() {
             </div>
 
             <div className="flex items-center justify-between border-t border-[#424754]/40 pt-4">
-              <span className="text-sm text-[#c2c6d6]">
-                {stock.scoreLabel}
-              </span>
+              <div className="min-w-0 pr-3">
+                <span className="block text-sm text-[#c2c6d6]">
+                  {stock.scoreLabel}
+                </span>
+                <span className="mt-1 line-clamp-2 block text-[12px] leading-5 text-[#8c909f]">
+                  {stockReason(stock)}
+                </span>
+              </div>
 
-              <span className="rounded border border-[#4edea3]/30 bg-[#4edea3]/10 px-3 py-1 font-mono text-[13px] text-[#4edea3]">
+              <span className="shrink-0 rounded border border-[#4edea3]/30 bg-[#4edea3]/10 px-3 py-1 font-mono text-[13px] text-[#4edea3]">
                 {stock.moneySignalScore}
               </span>
             </div>
