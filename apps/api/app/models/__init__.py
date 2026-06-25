@@ -11,3 +11,4 @@ from app.models.ai_insight import AIInsight
 from app.models.watchlist import Watchlist
 from app.models.alert import Alert
 from app.models.market_snapshot import MarketSnapshot
+from app.models.scrape_history import ScrapeHistory

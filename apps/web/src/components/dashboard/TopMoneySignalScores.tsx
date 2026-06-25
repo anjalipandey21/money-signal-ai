@@ -2,10 +2,43 @@
 import Link from "next/link";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
 import { useTopMoneySignalScores } from "@/hooks/useTopMoneySignalScores";
-import { formatFreshnessLabel, type TopMoneySignalScore, } from "@/lib/moneySignalApi";
+import { useEffect, useState } from "react";
+import {
+  formatFreshnessLabel,
+  getStockQuotes,
+  type StockQuoteResponse,
+  type TopMoneySignalScore,
+} from "@/lib/moneySignalApi";
 
 export function TopMoneySignalScores() {
   const { data, isLoading, isUsingFallback } = useTopMoneySignalScores();
+  const [liveQuotes, setLiveQuotes] = useState<Record<string, StockQuoteResponse>>({});
+
+  useEffect(() => {
+    async function loadLiveQuotes() {
+      try {
+        const tickers = data.map((card) => card.ticker).filter(Boolean);
+
+        if (tickers.length === 0) return;
+
+        const quotes = await getStockQuotes(tickers);
+
+        const quoteMap = quotes.reduce<Record<string, StockQuoteResponse>>(
+          (acc, quote) => {
+            acc[quote.ticker] = quote;
+            return acc;
+          },
+          {}
+        );
+
+        setLiveQuotes(quoteMap);
+      } catch (error) {
+        console.error("Failed to load live quotes:", error);
+      }
+    }
+
+    loadLiveQuotes();
+  }, [data]);
 
   return (
     <section>
@@ -35,14 +68,18 @@ export function TopMoneySignalScores() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {data.map((card) => (
-          <ScoreCard key={card.ticker} card={card} />
+          <ScoreCard
+            key={card.ticker}
+            card={card}
+            quote={liveQuotes[card.ticker]}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-function ScoreCard({ card }: { card: TopMoneySignalScore }) {
+function ScoreCard({ card, quote, }: {  card: TopMoneySignalScore;  quote?: StockQuoteResponse;}) {
   return (
     <Link
       href={`/stocks/${card.ticker}`}
@@ -70,15 +107,15 @@ function ScoreCard({ card }: { card: TopMoneySignalScore }) {
 
       <div className="flex items-end justify-between">
         <p className="text-[18px] font-semibold text-[#e0e2ed]">
-          {card.price}
+          {quote?.price ?? card.price}
         </p>
 
         <p className="font-mono text-[12px] text-[#4edea3]">
-          {card.change}
+          {quote?.changePercent ?? card.change}
         </p>
       </div>
       <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-[#8c909f]">
-        {formatFreshnessLabel(card.priceFetchedAt, card.marketProvider)}
+        {quote?.freshnessLabel ?? formatFreshnessLabel(card.priceFetchedAt, card.marketProvider)}
       </p>
     </Link>
     

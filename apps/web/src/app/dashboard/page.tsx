@@ -1,6 +1,6 @@
+"use client";
+
 import { AppShell } from "@/components/layout/AppShell";
-import { GlassPanel } from "@/components/ui/GlassPanel";
-import { ActionBadge } from "@/components/ui/ActionBadge";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
 import { TopMoneySignalScores } from "@/components/dashboard/TopMoneySignalScores";
 import { RecentInstitutionalMoves } from "@/components/dashboard/RecentInstitutionalMoves";
@@ -9,6 +9,7 @@ import { DashboardAIMarketPulse } from "@/components/dashboard/DashboardAIMarket
 import { DashboardWatchlistPreview } from "@/components/dashboard/DashboardWatchlistPreview";
 import { DashboardDataHealthCard } from "@/components/dashboard/DashboardDataHealthCard";
 import { DashboardMarketRefreshCard } from "@/components/dashboard/DashboardMarketRefreshCard";
+import { DashboardDataFreshnessCard } from "@/components/dashboard/DashboardDataFreshnessCard";
 
 function AIAssistantButton() {
   return (
@@ -44,6 +45,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex flex-col gap-6">
+          <DashboardDataFreshnessCard />
           <DashboardMarketRefreshCard />
           <DashboardDataHealthCard />
           <DashboardAIMarketPulse />

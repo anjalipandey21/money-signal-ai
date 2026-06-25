@@ -11,7 +11,8 @@ type ActivePage =
   | "Alerts"
   | "Methodology"
   | "Settings"
-  | "Support";
+  | "Support"
+  | "Data Ops";
 
 type AppSidebarProps = {
   activePage: ActivePage;
@@ -37,6 +38,12 @@ const bottomItems: { label: ActivePage; href: string; icon: string }[] = [
   { label: "Support", href: "/support", icon: "help" },
   { label: "Settings", href: "/settings", icon: "settings" },
 ];
+
+const adminItems: { label: ActivePage; href: string; icon: string }[] = [
+  { label: "Data Ops", href: "/admin/scraper", icon: "database" },
+];
+
+const showAdminLink = process.env.NEXT_PUBLIC_SHOW_ADMIN_LINK === "true";
 
 function SidebarLink({
   href,
@@ -157,6 +164,24 @@ export function AppSidebar({ activePage }: AppSidebarProps) {
         </div>
 
         {activePage === "Stocks" ? <AISynthesisStatus /> : null}
+
+        {showAdminLink ? (
+          <div className="border-t border-[#424754]/30 py-2">
+            <p className="px-4 pb-2 font-mono text-[10px] uppercase tracking-[0.24em] text-[#c2c6d6]/50">
+              Admin / Tools
+            </p>
+
+            {adminItems.map((item) => (
+              <SidebarLink
+                key={item.label}
+                href={item.href}
+                icon={item.icon}
+                label={item.label}
+                active={activePage === item.label}
+              />
+            ))}
+          </div>
+        ) : null}
 
         {/* Bottom Links */}
         <div className="border-t border-[#424754]/30 py-2">

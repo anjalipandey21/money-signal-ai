@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
-import { getStocks, type StockListItem } from "@/lib/moneySignalApi";
+import {
+  getStocks,
+  getStockQuotes,
+  type StockListItem,
+  type StockQuoteResponse,
+} from "@/lib/moneySignalApi";
+
 
 const fallbackStocks: StockListItem[] = [
   {
@@ -49,44 +55,129 @@ const fallbackStocks: StockListItem[] = [
   },
 ];
 
+function signalTone(stock: StockListItem) {
+  const label = stock.scoreLabel.toLowerCase();
+
+  if (stock.moneySignalScore >= 75 || label.includes("bullish")) {
+    return {
+      label: "Bullish",
+      className: "border-[#4edea3]/30 bg-[#4edea3]/10 text-[#4edea3]",
+    };
+  }
+
+  if (stock.moneySignalScore <= 40 || label.includes("bearish")) {
+    return {
+      label: "Bearish",
+      className: "border-[#ffb4ab]/30 bg-[#ffb4ab]/10 text-[#ffb4ab]",
+    };
+  }
+
+  return {
+    label: "Neutral",
+    className: "border-[#8c909f]/40 bg-[#8c909f]/10 text-[#c2c6d6]",
+  };
+}
+
+function sourceLabel(stock: StockListItem, quote?: StockQuoteResponse) {
+  if (quote?.marketProvider || stock.marketProvider) {
+    return "Market";
+  }
+
+  if (stock.priceFetchedAt || quote?.priceFetchedAt) {
+    return "Market";
+  }
+
+  return "MoneySignal";
+}
+
+function stockReason(stock: StockListItem) {
+  if (stock.scoreLabel && stock.scoreLabel !== "Monitoring") {
+    return `${stock.scoreLabel} MoneySignal profile based on tracked public signals.`;
+  }
+
+  return "Monitoring for market, Form 4, 13F, and AI signal updates.";
+}
+
 export default function StocksPage() {
   const [stocks, setStocks] = useState<StockListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUsingFallback, setIsUsingFallback] = useState(false);
+  const [liveQuotes, setLiveQuotes] = useState<Record<string, StockQuoteResponse>>({});
 
+  useEffect(() => {
+  let isMounted = true;
+
+  async function loadStocks() {
+    try {
+      setIsLoading(true);
+
+      const data = await getStocks();
+
+      if (!isMounted) return;
+
+      setStocks(data);
+      setIsUsingFallback(false);
+    } catch (error) {
+      console.error("Failed to load stocks:", error);
+
+      if (!isMounted) return;
+
+      setStocks(fallbackStocks);
+      setIsUsingFallback(true);
+    } finally {
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    }
+  }
+
+  loadStocks();
+
+  return () => {
+    isMounted = false;
+  };
+}, []);
+  
   useEffect(() => {
     let isMounted = true;
 
-    async function loadStocks() {
+    async function loadLiveQuotes() {
       try {
-        setIsLoading(true);
+        const tickers = Array.from(
+          new Set(stocks.map((stock) => stock.ticker).filter(Boolean))
+        );
 
-        const response = await getStocks();
+        if (tickers.length === 0) return;
+
+        const quotes = await getStockQuotes(tickers);
 
         if (!isMounted) return;
 
-        setStocks(response);
-        setIsUsingFallback(false);
+        const quoteMap = quotes.reduce<Record<string, StockQuoteResponse>>(
+          (acc, quote) => {
+            if (!quote.error) {
+              acc[quote.ticker] = quote;
+            }
+            return acc;
+          },
+          {}
+        );
+
+        setLiveQuotes(quoteMap);
       } catch (error) {
-        console.error("Failed to load stocks:", error);
-
-        if (!isMounted) return;
-
-        setStocks(fallbackStocks);
-        setIsUsingFallback(true);
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        console.error("Failed to load stock list live quotes:", error);
       }
     }
 
-    loadStocks();
+  loadLiveQuotes();
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const intervalId = window.setInterval(loadLiveQuotes, 60_000);
+
+  return () => {
+    isMounted = false;
+    window.clearInterval(intervalId);
+  };
+}, [stocks]);
 
   return (
     <AppShell activePage="Stocks">
@@ -113,7 +204,14 @@ export default function StocksPage() {
       </section>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {stocks.map((stock) => (
+        {stocks.map((stock) => {
+            const quote = liveQuotes[stock.ticker];
+            const displayPrice = quote?.price ?? stock.price;
+            const displayChangePercent = quote?.changePercent ?? stock.changePercent ?? "0.00%";
+            const displayFreshness = quote?.freshnessLabel ?? stock.freshnessLabel;
+            const isNegative = displayChangePercent.startsWith("-");
+            const tone = signalTone(stock);
+            return (
           <Link
             key={stock.ticker}
             href={`/stocks/${stock.ticker}`}
@@ -136,6 +234,17 @@ export default function StocksPage() {
               />
             </div>
 
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <span
+                className={`rounded border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${tone.className}`}
+              >
+                {tone.label}
+              </span>
+              <span className="rounded border border-[#424754]/50 bg-[#0d121f] px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[#c2c6d6]">
+                Source: {sourceLabel(stock, quote)}
+              </span>
+            </div>
+
             <p className="mb-4 text-sm text-[#8c909f]">{stock.category}</p>
 
             <div className="mb-4 flex items-end justify-between">
@@ -144,32 +253,43 @@ export default function StocksPage() {
                   Price
                 </p>
                 <p className="mt-1 text-[18px] font-semibold text-[#e0e2ed]">
-                  {stock.price}
+                  {displayPrice}
                 </p>
+                {displayFreshness ? (
+                  <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-[#8c909f]">
+                    {displayFreshness}
+                  </p>
+                ) : null}
               </div>
 
               <p
                 className={`font-mono text-[13px] ${
-                  stock.changePercent.startsWith("-")
+                  isNegative
                     ? "text-[#ffb4ab]"
                     : "text-[#4edea3]"
                 }`}
               >
-                {stock.changePercent}
+                {displayChangePercent}
               </p>
             </div>
 
             <div className="flex items-center justify-between border-t border-[#424754]/40 pt-4">
-              <span className="text-sm text-[#c2c6d6]">
-                {stock.scoreLabel}
-              </span>
+              <div className="min-w-0 pr-3">
+                <span className="block text-sm text-[#c2c6d6]">
+                  {stock.scoreLabel}
+                </span>
+                <span className="mt-1 line-clamp-2 block text-[12px] leading-5 text-[#8c909f]">
+                  {stockReason(stock)}
+                </span>
+              </div>
 
-              <span className="rounded border border-[#4edea3]/30 bg-[#4edea3]/10 px-3 py-1 font-mono text-[13px] text-[#4edea3]">
+              <span className="shrink-0 rounded border border-[#4edea3]/30 bg-[#4edea3]/10 px-3 py-1 font-mono text-[13px] text-[#4edea3]">
                 {stock.moneySignalScore}
               </span>
             </div>
           </Link>
-        ))}
+          );
+        })}
       </section>
 
       {!isLoading && stocks.length === 0 ? (

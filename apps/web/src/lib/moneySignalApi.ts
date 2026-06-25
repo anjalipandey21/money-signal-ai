@@ -437,10 +437,22 @@ export async function getStockDetail(ticker: string) {
   };
 }
 
-export async function getStocks() {
-  const response = await apiClient<StockListItem[]>("/api/stocks", {
-    authToken: getAuthToken(),
+export async function getStocks(limit = 100, offset = 0, search = "") {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
   });
+
+  if (search.trim()) {
+    params.set("search", search.trim());
+  }
+
+  const response = await apiClient<StockListItem[]>(
+    `/api/stocks?${params.toString()}`,
+    {
+      authToken: getAuthToken(),
+    }
+  );
 
   return response.map((stock) => ({
     ...stock,
@@ -476,6 +488,202 @@ export async function refreshMarketSnapshot(ticker: string) {
   );
 }
 
+export async function getStockQuote(ticker: string, refresh = false) {
+  const query = refresh ? "?refresh=true" : "";
+
+  const response = await apiClient<StockQuoteResponse>(
+    `/api/stocks/quote/${ticker.toUpperCase()}${query}`,
+    {
+      authToken: getAuthToken(),
+    }
+  );
+
+  return {
+    ...response,
+    freshnessLabel: formatFreshnessLabel(
+      response.priceFetchedAt,
+      response.marketProvider
+    ),
+  };
+}
+
+export async function getStockQuotes(tickers: string[], refresh = false) {
+  const params = new URLSearchParams({
+    tickers: tickers.map((ticker) => ticker.toUpperCase()).join(","),
+  });
+
+  if (refresh) {
+    params.set("refresh", "true");
+  }
+
+  const response = await apiClient<StockQuoteResponse[]>(
+    `/api/stocks/quotes?${params.toString()}`,
+    {
+      authToken: getAuthToken(),
+    }
+  );
+
+  return response.map((quote) => ({
+    ...quote,
+    freshnessLabel: formatFreshnessLabel(
+      quote.priceFetchedAt,
+      quote.marketProvider
+    ),
+  }));
+}
+
+export async function getStockHistory(ticker: string, days = 30) {
+  return apiClient<StockHistoryResponse>(
+    `/api/stocks/history/${ticker.toUpperCase()}?days=${days}`,
+    {
+      authToken: getAuthToken(),
+    }
+  );
+}
+
+export async function getMarketOverview(limit = 25) {
+  return apiClient<MarketOverviewResponse>(
+    `/api/stocks/overview?limit=${limit}`,
+    { authToken: getAuthToken() }
+  );
+}
+
+export async function ingestRecentForm4(ticker: string, limit = 10) {
+  return apiClient<unknown>(
+    `/api/scraper/sec-form4/${ticker.toUpperCase()}/ingest-recent?limit=${limit}`,
+    {
+      method: "POST",
+      authToken: getAuthToken(),
+    }
+  );
+}
+
+export async function ingestRecent13F(cik: string, limit = 3) {
+  return apiClient<unknown>(
+    `/api/scraper/sec-13f/${cik}/ingest-recent?limit=${limit}`,
+    {
+      method: "POST",
+      authToken: getAuthToken(),
+    }
+  );
+}
+
+export async function runSchedulerScrape(ticker: string, limit = 10) {
+  return apiClient<unknown>(
+    `/api/scheduler/scrape/${ticker.toUpperCase()}?limit=${limit}`,
+    {
+      method: "POST",
+      authToken: getAuthToken(),
+    }
+  );
+}
+
+export async function runFullIngestionPipeline({
+  form4Limit = 5,
+  thirteenFLimit = 3,
+  refreshMarket = true,
+  timeoutMs = 60_000,
+}: {
+  form4Limit?: number;
+  thirteenFLimit?: number;
+  refreshMarket?: boolean;
+  timeoutMs?: number;
+} = {}) {
+  const params = new URLSearchParams({
+    form4_limit: String(form4Limit),
+    thirteen_f_limit: String(thirteenFLimit),
+    refresh_market: String(refreshMarket),
+  });
+
+  return apiClient<FullIngestionPipelineResponse>(
+    `/api/scheduler/run-ingestion?${params.toString()}`,
+    {
+      method: "POST",
+      authToken: getAuthToken(),
+      timeoutMs,
+    }
+  );
+}
+
+export async function getSchedulerStatus() {
+  return apiClient<SchedulerStatusResponse>("/api/scheduler/status", {
+    authToken: getAuthToken(),
+  });
+}
+
+export async function getScrapeHistory(limit = 25) {
+  const response = await apiClient<ScrapeHistoryResponse>(
+    `/api/scraper/history?limit=${limit}`,
+    {
+      authToken: getAuthToken(),
+    }
+  );
+
+  return response.items;
+}
+
+export async function importSecCompanyUniverse({
+  limit = 100,
+  enrichProfile = false,
+  includeFunds = false,
+  includeOtc = false,
+}: {
+  limit?: number;
+  enrichProfile?: boolean;
+  includeFunds?: boolean;
+  includeOtc?: boolean;
+} = {}) {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    enrich_profile: String(enrichProfile),
+    include_funds: String(includeFunds),
+    include_otc: String(includeOtc),
+  });
+
+  return apiClient<SecCompanyUniverseImportResponse>(
+    `/api/scraper/sec-company-universe/import?${params.toString()}`,
+    {
+      method: "POST",
+      authToken: getAuthToken(),
+    }
+  );
+}
+
+export async function importStockUniverse(limit = 500) {
+  return apiClient<StockUniverseImportResponse>(
+    `/api/stocks/universe/import?limit=${limit}`,
+    {
+      method: "POST",
+      authToken: getAuthToken(),
+    }
+  );
+}
+
+export async function refreshTrackedStockQuotes(limit = 100, offset = 0) {
+  return apiClient<{
+    count: number;
+    results: {
+      ticker: string;
+      status: string;
+      price?: string;
+      changePercent?: string;
+      provider?: string | null;
+      priceFetchedAt?: string | null;
+      error?: string;
+    }[];
+  }>(`/api/stocks/quotes/refresh-tracked?limit=${limit}&offset=${offset}`, {
+    method: "POST",
+    authToken: getAuthToken(),
+  });
+}
+
+export async function trackStock(ticker: string) {
+  return apiClient<unknown>(`/api/stocks/track/${ticker.toUpperCase()}`, {
+    method: "POST",
+    authToken: getAuthToken(),
+  });
+}
+
 export type MarketDataHealthStatus =
   | "fresh"
   | "stale"
@@ -503,4 +711,167 @@ export type MarketDataHealthItem = {
 export type MarketDataHealthResponse = {
   summary: MarketDataHealthSummary;
   items: MarketDataHealthItem[];
+};
+
+export type StockQuoteResponse = {
+  ticker: string;
+  companyName?: string;
+  category?: string;
+  price?: string;
+  changeAmount?: string;
+  changePercent?: string;
+  marketProvider?: string | null;
+  priceFetchedAt?: string | null;
+  marketTime?: string | null;
+  error?: string;
+  freshnessLabel?: string;
+};
+
+export type StockHistoryPoint = {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+};
+
+export type StockHistoryResponse = {
+  ticker: string;
+  days: number;
+  data: StockHistoryPoint[];
+};
+
+export type MarketOverviewItem = {
+  ticker: string;
+  companyName: string;
+  category: string;
+  price: string | null;
+  changeAmount: string | null;
+  changePercent: string | null;
+  marketProvider: string | null;
+  priceFetchedAt: string | null;
+  marketTime: string | null;
+  moneySignalScore: number;
+  scoreLabel: string;
+  smartMoneyActivityCount: number;
+  insiderActivityCount: number;
+  fundActivityCount: number;
+  latestInsiderActivity: {
+    insider: string;
+    type: string;
+    value: string;
+    tone: string;
+    transactionDate: string | null;
+  } | null;
+  latestFundActivity: {
+    institution: string;
+    action: string;
+    sharesChange: string;
+    tone: string;
+    quarter: string | null;
+    marketValue: string;
+    periodEndDate: string | null;
+  } | null;
+  latestSignal: {
+    label: string;
+    description: string;
+    tone: string;
+    sourceType: string;
+    sourceName: string | null;
+    detectedAt: string | null;
+  } | null;
+};
+
+export type MarketOverviewResponse = {
+  count: number;
+  data: MarketOverviewItem[];
+};
+
+export type ScrapeHistoryItem = {
+  id: number;
+  ticker: string;
+  sourceType: string;
+  status: string;
+  filingsFound: number;
+  filingsProcessed: number;
+  filingsSkipped: number;
+  filingsFailed: number;
+  recordsCreated: number;
+  errorMessage: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+};
+
+export type SchedulerStatusResponse = {
+  running: boolean;
+  jobs: {
+    id: string;
+    nextRunTime: string | null;
+  }[];
+  scheduleHours: number;
+  maxFilings: number;
+  thirteenFMaxFilings?: number;
+  refreshMarket?: boolean;
+  cooldownHours: number;
+};
+
+export type StockUniverseImportResponse = {
+  status: string;
+  scanned: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  limit: number;
+};
+
+export type SecCompanyUniverseImportResponse = StockUniverseImportResponse & {
+  success: boolean;
+  source: string;
+  duplicateCikSkipped: number;
+  enrichProfile: boolean;
+  startedAt: string;
+  completedAt: string;
+  durationSeconds: number;
+};
+
+export type ScrapeHistoryResponse = {
+  success: boolean;
+  count: number;
+  items: ScrapeHistoryItem[];
+};
+
+export type IngestionStageResult = {
+  stage: string;
+  success: boolean;
+  attempted: number;
+  processed: number;
+  skipped: number;
+  failed: number;
+  recordsCreated: number;
+  errors: {
+    ticker?: string;
+    fund?: string;
+    cik?: string;
+    accessionNumber?: string;
+    error: string;
+  }[];
+};
+
+export type FullIngestionPipelineResponse = {
+  success: boolean;
+  status: string;
+  startedAt: string;
+  completedAt: string;
+  durationSeconds: number;
+  companiesFound?: number;
+  fundsFound?: number;
+  stages?: IngestionStageResult[];
+  totals?: {
+    processed: number;
+    skipped: number;
+    failed: number;
+    recordsCreated: number;
+  };
+  error?: string;
 };

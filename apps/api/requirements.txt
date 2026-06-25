@@ -18,3 +18,6 @@ typing_extensions==4.15.0
 uvicorn==0.47.0
 yfinance==0.2.66
 pandas==2.3.3
+yfinance==0.2.66
+httpx==0.34.1
+apscheduler==3.10.1

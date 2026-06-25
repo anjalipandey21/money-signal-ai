@@ -35,6 +35,24 @@ function scoreColor(direction: SignalItem["direction"]) {
   return "text-[#e0e2ed]";
 }
 
+function directionLabel(direction: SignalItem["direction"]) {
+  if (direction === "bullish") return "Bullish";
+  if (direction === "bearish") return "Bearish";
+  if (direction === "mixed") return "Mixed";
+  return "Neutral";
+}
+
+function sourceLabel(source: string) {
+  const value = source.toUpperCase();
+
+  if (value.includes("FORM 4") || value.includes("INSIDER")) return "Form 4";
+  if (value.includes("13F") || value.includes("FUND")) return "13F";
+  if (value.includes("AI")) return "AI";
+  if (value.includes("MARKET")) return "Market";
+
+  return source;
+}
+
 function EmptyState() {
   return (
     <div className="flex min-h-[260px] flex-col items-center justify-center border-t border-[#424754]/30 px-6 py-10 text-center">
@@ -90,7 +108,7 @@ export function SignalsFeedList({
               </th>
 
               <th className="px-4 py-4 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-[#c2c6d6]">
-                AI Context
+                Reason
               </th>
 
               <th className="w-[100px] px-4 py-4 text-right font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-[#c2c6d6]">
@@ -123,13 +141,22 @@ export function SignalsFeedList({
                   </td>
 
                   <td className="px-4 py-5 align-top">
-                    <span
-                      className={`inline-flex max-w-[190px] items-center rounded border px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] ${eventBadgeStyle(
-                        signal.direction
-                      )}`}
-                    >
-                      {signal.signalEvent}
-                    </span>
+                    <div className="flex flex-col items-start gap-2">
+                      <span
+                        className={`inline-flex max-w-[190px] items-center rounded border px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] ${eventBadgeStyle(
+                          signal.direction
+                        )}`}
+                      >
+                        {signal.signalEvent}
+                      </span>
+                      <span
+                        className={`rounded border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${eventBadgeStyle(
+                          signal.direction
+                        )}`}
+                      >
+                        {directionLabel(signal.direction)}
+                      </span>
+                    </div>
                   </td>
 
                   <td
@@ -144,8 +171,15 @@ export function SignalsFeedList({
                     {signal.confidence}%
                   </td>
 
-                  <td className="px-4 py-5 align-top font-mono text-[13px] leading-5 text-[#c2c6d6]">
-                    {signal.source}
+                  <td className="px-4 py-5 align-top">
+                    <span className="rounded border border-[#424754]/50 bg-[#181c23] px-2 py-1 font-mono text-[11px] uppercase tracking-wider text-[#c2c6d6]">
+                      {sourceLabel(signal.source)}
+                    </span>
+                    {sourceLabel(signal.source) !== signal.source ? (
+                      <p className="mt-1 text-[11px] leading-4 text-[#8c909f]">
+                        {signal.source}
+                      </p>
+                    ) : null}
                   </td>
 
                   <td className="px-4 py-5 align-top text-[14px] leading-6 text-[#c2c6d6] group-hover:text-[#e0e2ed]">
@@ -167,7 +201,8 @@ export function SignalsFeedList({
       <div className="flex items-center justify-between border-t border-[#424754]/40 bg-[#0d121b] px-4 py-4">
         <div className="flex items-center gap-3">
           <span className="text-[13px] text-[#c2c6d6]">
-            Showing 1-{visibleSignals.length} of 1,204 signals
+            Showing {visibleSignals.length} signal
+            {visibleSignals.length === 1 ? "" : "s"}
           </span>
 
           <span

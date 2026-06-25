@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getStockDetail, type StockDetail } from "@/lib/moneySignalApi";
+import {
+  getStockDetail,
+  getStockQuote,
+  getStockHistory,
+  type StockDetail,
+  type StockHistoryPoint,
+} from "@/lib/moneySignalApi";
 
 const fallbackStockDetail: StockDetail = {
   ticker: "NVDA",
@@ -100,10 +106,11 @@ const fallbackStockDetail: StockDetail = {
   ],
 };
 
-export function useStockDetail(ticker: string) {
+export function useStockDetail(ticker: string, historyDays = 30) {
   const [data, setData] = useState<StockDetail>(fallbackStockDetail);
   const [isLoading, setIsLoading] = useState(true);
   const [isUsingFallback, setIsUsingFallback] = useState(false);
+  const [history, setHistory] = useState<StockHistoryPoint[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -112,17 +119,39 @@ export function useStockDetail(ticker: string) {
       try {
         setIsLoading(true);
 
-        const response = await getStockDetail(ticker);
+        const detail = await getStockDetail(ticker);
+        const historyResponse = await getStockHistory(ticker, historyDays);
 
-        if (!isMounted) return;
 
-        setData(response);
-        setIsUsingFallback(false);
+        try {
+          const quote = await getStockQuote(ticker);
+
+          if (!isMounted) return;
+
+            setData({
+              ...detail,
+              price: quote.price ?? detail.price,
+              changeAmount: quote.changeAmount ?? detail.changeAmount,
+              changePercent: quote.changePercent ?? detail.changePercent,
+              marketProvider: quote.marketProvider ?? detail.marketProvider,
+              priceFetchedAt: quote.priceFetchedAt ?? detail.priceFetchedAt,
+              marketTime: quote.marketTime ?? detail.marketTime,
+              freshnessLabel: quote.freshnessLabel ?? detail.freshnessLabel,
+            });
+
+            setHistory(historyResponse.data);
+            setIsUsingFallback(false);
+
+            setIsUsingFallback(false);
+        } catch (quoteError) {
+          console.error("Failed to load live stock quote:", quoteError);
+          if (!isMounted) return;
+            setData(detail);
+            setIsUsingFallback(false);
+        }
       } catch (error) {
         console.error("Failed to load stock detail:", error);
-
         if (!isMounted) return;
-
         setData(fallbackStockDetail);
         setIsUsingFallback(true);
       } finally {
@@ -137,10 +166,11 @@ export function useStockDetail(ticker: string) {
     return () => {
       isMounted = false;
     };
-  }, [ticker]);
-
+  }, [ticker, historyDays]);
+  
   return {
     data,
+    history,
     isLoading,
     isUsingFallback,
   };

@@ -15,7 +15,8 @@ type AppShellProps = {
     | "Alerts"
     | "Methodology"
     | "Settings"
-    | "Support";
+    | "Support"
+    | "Data Ops";
   children: ReactNode;
 };
 

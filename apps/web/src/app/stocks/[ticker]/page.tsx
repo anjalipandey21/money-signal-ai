@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
 import { useStockDetail } from "@/hooks/useStockDetail";
 import { addWatchlistStock, type StockTone } from "@/lib/moneySignalApi";
+import { StockPriceChart } from "@/components/stocks/StockPriceChart";
 
 function toneText(tone: StockTone) {
   if (tone === "positive") return "text-[#4edea3]";
@@ -45,8 +46,12 @@ function toneBar(tone: StockTone) {
 
 export default function StockDetailPage() {
   const params = useParams();
+  const [historyDays, setHistoryDays] = useState(30);
   const ticker = String(params.ticker || "NVDA").toUpperCase();
-  const { data, isLoading, isUsingFallback } = useStockDetail(ticker);
+  const { data, history, isLoading, isUsingFallback } = useStockDetail(
+  ticker,
+  historyDays
+);
 
   const [watchlistState, setWatchlistState] = useState<
     "idle" | "saving" | "added" | "error"
@@ -255,6 +260,38 @@ export default function StockDetailPage() {
               </div>
             </div>
           </div>
+
+          <section className="min-w-0 rounded border border-[#424754]/50 bg-[#181c23] p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-[18px] font-semibold text-[#e0e2ed]">
+                  30-Day Price History
+                </h2>
+                <p className="text-[12px] text-[#8c909f]">
+                  Daily closing price movement
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              {[7, 30, 90, 365].map((days) => (
+                <button
+                  key={days}
+                  type="button"
+                  onClick={() => setHistoryDays(days)}
+                  className={`rounded border px-3 py-1 font-mono text-[11px] transition ${
+                    historyDays === days
+                      ? "border-[#4edea3]/50 bg-[#4edea3]/10 text-[#4edea3]"
+                      : "border-[#424754]/60 text-[#8c909f] hover:border-[#adc6ff]/50 hover:text-[#adc6ff]"
+                  }`}
+                >
+                  {days === 365 ? "1Y" : `${days}D`}
+                </button>
+              ))}
+            </div>
+
+            <StockPriceChart history={history} />
+          </section>
 
           <div className="rounded-lg border border-[#424754] bg-[#0D121F] p-4">
             <div className="mb-6 flex items-center gap-2 border-b border-[#424754]/50 pb-3">

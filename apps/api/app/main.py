@@ -12,6 +12,8 @@ from app.routers.scoring import router as scoring_router
 from app.routers.ai_insights import router as ai_insights_router
 from app.routers.market import router as market_router
 from app.routers.data_health import router as data_health_router
+from app.routers.scraper import router as scraper_router
+from app.routers.scheduler import router as scheduler_router
 
 from app.models import (Company,
                         Insider,
@@ -26,6 +28,7 @@ from app.models import (Company,
                         Watchlist,
                         Alert,
                         MarketSnapshot,
+                        ScrapeHistory,
                         )
 
 Base.metadata.create_all(bind=engine)
@@ -54,3 +57,5 @@ app.include_router(scoring_router, prefix="/api")
 app.include_router(ai_insights_router, prefix="/api")
 app.include_router(market_router, prefix="/api")
 app.include_router(data_health_router, prefix="/api")
+app.include_router(scraper_router, prefix="/api")
+app.include_router(scheduler_router, prefix="/api")
