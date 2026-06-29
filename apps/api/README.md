@@ -35,6 +35,25 @@ run id instead of starting a duplicate task. `INGESTION_MAX_RUNTIME_SECONDS`
 defaults to `1200`; after that window the status endpoint marks the run stale
 for the admin UI, while the background task is allowed to finish naturally.
 
+## Market Data Settings
+
+Market quotes are fetched through the configured provider order with bounded
+retries, fallback between available providers, quote validation, and freshness
+metadata. `MARKET_DATA_PROVIDER=auto` tries Yahoo Finance first, then Alpha
+Vantage when `ALPHA_VANTAGE_API_KEY` is configured.
+
+```powershell
+cd apps/api
+$env:MARKET_DATA_PROVIDER = "auto"
+$env:MARKET_REQUEST_TIMEOUT_SECONDS = "10"
+$env:MARKET_MAX_RETRIES = "2"
+$env:MARKET_BACKOFF_BASE_SECONDS = "0.5"
+$env:MARKET_QUOTE_STALE_MINUTES = "60"
+$env:MARKET_MAX_BATCH_SIZE = "25"
+```
+
+Invalid, stale, or unsupported quote data is skipped and reported in ingestion
+stage details instead of being saved as a market snapshot.
 ## SEC Client Settings
 
 SEC archive and submissions requests are centralized, rate-limited, retried for

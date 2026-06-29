@@ -8,7 +8,11 @@ from app.models import Company, Fund, ScrapeHistory
 from app.services.form13f_ingestion_service import ingest_13f_filing
 from app.services.form4_ingestion_service import ingest_form4_filing
 from app.services.form4_parser import Form4ParserError
-from app.services.market_data_service import refresh_market_snapshot
+from app.services.market_data_service import (
+    MarketQuoteValidationError,
+    get_market_ticker_skip_reason,
+    refresh_market_snapshot,
+)
 from app.services.scoring_service import recalculate_all_scores
 from app.services.scrape_history_service import (
     create_pipeline_history,
@@ -71,6 +75,16 @@ def _empty_stage(name: str, message: str | None = None) -> dict[str, Any]:
         "filingsDuplicateSkipped": 0,
         "holdingsCreated": 0,
         "holdingsUpdated": 0,
+        "staleSkipped": 0,
+        "providerFallbackCount": 0,
+        "providerFailureCount": 0,
+        "invalidTickerSkipped": 0,
+        "otcSkipped": 0,
+        "unsupportedTickerSkipped": 0,
+        "eligibleTickers": 0,
+        "filteredTickers": 0,
+        "skipReasons": {},
+        "providerSummary": {},
     }
 
 
@@ -157,7 +171,7 @@ def _common_stock_skip_reason(company: Company) -> str | None:
     if len(symbol) > 5:
         return "Ticker length is outside the supported common-stock range."
 
-    if "/" in symbol or "^" in symbol:
+    if "/" in symbol or "^" in symbol or "=" in symbol or " " in symbol:
         return "Ticker format is not supported."
 
     if symbol.endswith((".W", ".WS", ".U")):
@@ -204,6 +218,50 @@ def _append_ticker_sample(stage: dict[str, Any], key: str, ticker: str | None) -
         stage[key].append(ticker)
 
 
+def _increment_stage_reason(stage: dict[str, Any], reason: str) -> None:
+    skip_reasons = stage.setdefault("skipReasons", {})
+    skip_reasons[reason] = int(skip_reasons.get(reason, 0)) + 1
+
+
+def _record_market_filter(stage: dict[str, Any], reason: str | None) -> None:
+    reason = reason or "unsupported_ticker"
+    stage["filteredTickers"] += 1
+    _increment_stage_reason(stage, reason)
+
+    if reason in {"missing_ticker", "invalid_ticker"}:
+        stage["invalidTickerSkipped"] += 1
+    elif reason == "otc_ticker":
+        stage["otcSkipped"] += 1
+    else:
+        stage["unsupportedTickerSkipped"] += 1
+
+
+def _record_provider_success(stage: dict[str, Any], snapshot_provider: str | None, raw_payload: Any) -> None:
+    provider = snapshot_provider or "unknown"
+    summary = stage.setdefault("providerSummary", {})
+    provider_item = summary.setdefault(
+        provider,
+        {"success": 0, "failed": 0, "fallbacks": 0},
+    )
+    provider_item["success"] += 1
+
+    if isinstance(raw_payload, dict):
+        fallback_count = int(raw_payload.get("providerFallbackCount") or 0)
+        failure_count = int(raw_payload.get("providerFailureCount") or 0)
+        stage["providerFallbackCount"] += fallback_count
+        stage["providerFailureCount"] += failure_count
+        provider_item["fallbacks"] += fallback_count
+
+        for attempt in raw_payload.get("providerAttempts") or []:
+            if isinstance(attempt, dict) and attempt.get("status") == "failed":
+                attempt_provider = attempt.get("provider") or "unknown"
+                attempt_item = summary.setdefault(
+                    attempt_provider,
+                    {"success": 0, "failed": 0, "fallbacks": 0},
+                )
+                attempt_item["failed"] += 1
+
+
 def _market_refresh_candidates(
     companies: list[Company],
     market_stage: dict[str, Any],
@@ -222,22 +280,27 @@ def _market_refresh_candidates(
 
     for company in ordered_companies:
         symbol = (company.ticker or "").strip().upper()
+        reason_code = get_market_ticker_skip_reason(symbol, company.exchange)
         skip_reason = _market_skip_reason(company)
 
-        if skip_reason:
+        if reason_code or skip_reason:
             market_stage["skipped"] += 1
+            _record_market_filter(market_stage, reason_code)
             _append_ticker_sample(market_stage, "skippedTickers", symbol)
             _add_stage_warning(
                 market_stage,
                 warnings,
-                skip_reason,
+                skip_reason or f"{reason_code}; skipped by market refresh.",
                 ticker=company.ticker,
                 exchange=company.exchange,
             )
             continue
 
-        if symbol not in CORE_DEMO_TICKERS and len(candidates) >= normalized_limit:
+        market_stage["eligibleTickers"] += 1
+
+        if len(candidates) >= normalized_limit:
             market_stage["skipped"] += 1
+            _increment_stage_reason(market_stage, "market_limit")
             _append_ticker_sample(market_stage, "skippedTickers", symbol)
             continue
 
@@ -474,15 +537,42 @@ def run_full_ingestion_pipeline(
                 market_stage["attempted"] += 1
 
                 try:
-                    refresh_market_snapshot(db, company.ticker)
+                    snapshot = refresh_market_snapshot(db, company.ticker)
                     market_stage["processed"] += 1
                     market_stage["updated"] += 1
+                    _record_provider_success(
+                        market_stage,
+                        snapshot.provider,
+                        snapshot.raw_payload,
+                    )
                     consecutive_failures = 0
+
+                except MarketQuoteValidationError as error:
+                    db.rollback()
+                    market_stage["skipped"] += 1
+                    market_stage["invalidSkipped"] += 1
+                    consecutive_failures = 0
+                    reason = getattr(error, "reason", "invalid_quote")
+                    _increment_stage_reason(market_stage, reason)
+                    _append_ticker_sample(
+                        market_stage,
+                        "skippedTickers",
+                        company.ticker,
+                    )
+                    _add_stage_warning(
+                        market_stage,
+                        warnings,
+                        "Market quote was invalid and was not saved.",
+                        ticker=company.ticker,
+                        error=_short_error(error),
+                    )
 
                 except Exception as error:
                     db.rollback()
                     market_stage["failed"] += 1
+                    market_stage["providerFailureCount"] += 1
                     consecutive_failures += 1
+                    _increment_stage_reason(market_stage, "provider_error")
                     _append_ticker_sample(
                         market_stage,
                         "failedTickers",
@@ -493,12 +583,13 @@ def run_full_ingestion_pipeline(
                         warnings,
                         "Market provider did not return a usable quote.",
                         ticker=company.ticker,
-                        error=str(error),
+                        error=_short_error(error),
                     )
 
                     if consecutive_failures >= MARKET_MAX_CONSECUTIVE_FAILURES:
                         remaining = len(market_candidates) - market_stage["attempted"]
                         market_stage["skipped"] += remaining
+                        _increment_stage_reason(market_stage, "max_provider_failures")
                         market_stage["message"] = (
                             f"Market refresh stopped after "
                             f"{MARKET_MAX_CONSECUTIVE_FAILURES} consecutive "

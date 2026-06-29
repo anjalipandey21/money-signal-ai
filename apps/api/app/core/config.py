@@ -96,11 +96,21 @@ class Settings:
             "MARKET_DATA_CACHE_TTL_SECONDS",
             15 * 60,
         )
-
-        self.MARKET_DATA_REQUEST_TIMEOUT_SECONDS = _int_env(
-            "MARKET_DATA_REQUEST_TIMEOUT_SECONDS",
-            20,
+        self.MARKET_QUOTE_STALE_MINUTES = _int_env(
+            "MARKET_QUOTE_STALE_MINUTES",
+            60,
         )
+        self.MARKET_REQUEST_TIMEOUT_SECONDS = _int_env(
+            "MARKET_REQUEST_TIMEOUT_SECONDS",
+            _int_env("MARKET_DATA_REQUEST_TIMEOUT_SECONDS", 10),
+        )
+        self.MARKET_DATA_REQUEST_TIMEOUT_SECONDS = self.MARKET_REQUEST_TIMEOUT_SECONDS
+        self.MARKET_MAX_RETRIES = _int_env("MARKET_MAX_RETRIES", 2)
+        self.MARKET_BACKOFF_BASE_SECONDS = _float_env(
+            "MARKET_BACKOFF_BASE_SECONDS",
+            0.5,
+        )
+        self.MARKET_MAX_BATCH_SIZE = _int_env("MARKET_MAX_BATCH_SIZE", 25)
 
         self.SEC_USER_AGENT = os.getenv(
             "SEC_USER_AGENT",

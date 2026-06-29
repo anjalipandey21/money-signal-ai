@@ -300,6 +300,10 @@ def get_stock_quotes(
                     "marketProvider": market["marketProvider"],
                     "priceFetchedAt": market["priceFetchedAt"],
                     "marketTime": market["marketTime"],
+                    "marketStatus": market.get("marketStatus"),
+                    "isStale": market.get("isStale"),
+                    "staleAfterMinutes": market.get("staleAfterMinutes"),
+                    "quoteAgeMinutes": market.get("quoteAgeMinutes"),
                 }
             )
 
