@@ -87,6 +87,7 @@ def _fetch_yfinance_quote(ticker: str) -> dict[str, Any]:
             period="5d",
             interval="1d",
             auto_adjust=False,
+            timeout=settings.MARKET_DATA_REQUEST_TIMEOUT_SECONDS,
         )
 
         close_values = []
@@ -221,7 +222,7 @@ def fetch_market_quote(ticker: str) -> dict[str, Any]:
 
         except MarketDataError as exc:
             errors.append(f"{provider}: {exc}")
-            logger.warning("Market provider failed for %s: %s", symbol, exc)
+            logger.debug("Market provider failed for %s: %s", symbol, exc)
 
     raise MarketDataError(
         "; ".join(errors) or f"No market data provider available for {symbol}"

@@ -1,5 +1,4 @@
 import { apiClient } from "@/lib/apiClient";
-import { getAuthSession } from "@/lib/authSession";
 
 export type DashboardSummary = {
   moneySignalScore: number;
@@ -336,12 +335,11 @@ function mapBackendWatchlistAsset(asset: BackendWatchlistAsset): WatchlistAsset 
 }
 
 function getAuthToken() {
-  const session = getAuthSession();
-  return session?.token;
+  return undefined;
 }
 
 export async function getDashboardSummary() {
-  return apiClient<DashboardSummary>("/api/dashboard/summary", {
+  return apiClient<DashboardSummary>("/dashboard/summary", {
     authToken: getAuthToken(),
   });
 }
@@ -355,7 +353,7 @@ export type SignalDirectionFilter =
 
 export async function getSignals(direction: SignalDirectionFilter = "all") {
   const response = await apiClient<BackendSignalItem[]>(
-    "/api/signals?limit=20",
+    "/signals?limit=20",
     {
       authToken: getAuthToken(),
     }
@@ -372,7 +370,7 @@ export async function getSignals(direction: SignalDirectionFilter = "all") {
 
 export async function addWatchlistStock(ticker: string) {
   return apiClient<{ message: string; ticker: string; watchlistId: number }>(
-    `/api/watchlist/${ticker}`,
+    `/watchlist/${ticker}`,
     {
       method: "POST",
       authToken: getAuthToken(),
@@ -382,7 +380,7 @@ export async function addWatchlistStock(ticker: string) {
 
 export async function removeWatchlistStock(ticker: string) {
   return apiClient<{ message: string; removed: WatchlistAsset }>(
-    `/api/watchlist/${ticker}`,
+    `/watchlist/${ticker}`,
     {
       method: "DELETE",
       authToken: getAuthToken(),
@@ -392,31 +390,31 @@ export async function removeWatchlistStock(ticker: string) {
 
 export async function getTopMoneySignalScores() {
   // Backend now returns DB-backed market price/change.
-  return apiClient<TopMoneySignalScore[]>("/api/dashboard/top-scores", {
+  return apiClient<TopMoneySignalScore[]>("/dashboard/top-scores", {
     authToken: getAuthToken(),
   });
 }
 
 export async function getInstitutionalMoves() {
-  return apiClient<InstitutionalMove[]>("/api/dashboard/institutional-moves", {
+  return apiClient<InstitutionalMove[]>("/dashboard/institutional-moves", {
     authToken: getAuthToken(),
   });
 }
 
 export async function getInsiderTrades() {
-  return apiClient<InsiderTrade[]>("/api/dashboard/insider-trades", {
+  return apiClient<InsiderTrade[]>("/dashboard/insider-trades", {
     authToken: getAuthToken(),
   });
 }
 
 export async function getAIMarketPulse() {
-  return apiClient<AIMarketPulse>("/api/dashboard/ai-market-pulse", {
+  return apiClient<AIMarketPulse>("/dashboard/ai-market-pulse", {
     authToken: getAuthToken(),
   });
 }
 
 export async function getWatchlist() {
-  const response = await apiClient<BackendWatchlistAsset[]>("/api/watchlist", {
+  const response = await apiClient<BackendWatchlistAsset[]>("/watchlist", {
     authToken: getAuthToken(),
   });
 
@@ -424,7 +422,7 @@ export async function getWatchlist() {
 }
 
 export async function getStockDetail(ticker: string) {
-  const response = await apiClient<StockDetail>(`/api/stocks/${ticker}`, {
+  const response = await apiClient<StockDetail>(`/stocks/${ticker}`, {
     authToken: getAuthToken(),
   });
   
@@ -448,7 +446,7 @@ export async function getStocks(limit = 100, offset = 0, search = "") {
   }
 
   const response = await apiClient<StockListItem[]>(
-    `/api/stocks?${params.toString()}`,
+    `/stocks?${params.toString()}`,
     {
       authToken: getAuthToken(),
     }
@@ -465,7 +463,7 @@ export async function getStocks(limit = 100, offset = 0, search = "") {
 
 export async function getWatchlistPreview() {
   return apiClient<WatchlistPreviewItem[]>(
-    "/api/dashboard/watchlist-preview",
+    "/dashboard/watchlist-preview",
     {
       authToken: getAuthToken(),
     }
@@ -473,14 +471,14 @@ export async function getWatchlistPreview() {
 }
 
 export async function getMarketDataHealth() {
-  return apiClient<MarketDataHealthResponse>("/api/data-health/market", {
+  return apiClient<MarketDataHealthResponse>("/data-health/market", {
     authToken: getAuthToken(),
   });
 }
 
 export async function refreshMarketSnapshot(ticker: string) {
   return apiClient<MarketSnapshotResponse>(
-    `/api/market/refresh/${ticker.toUpperCase()}`,
+    `/market/refresh/${ticker.toUpperCase()}`,
     {
       method: "POST",
       authToken: getAuthToken(),
@@ -492,7 +490,7 @@ export async function getStockQuote(ticker: string, refresh = false) {
   const query = refresh ? "?refresh=true" : "";
 
   const response = await apiClient<StockQuoteResponse>(
-    `/api/stocks/quote/${ticker.toUpperCase()}${query}`,
+    `/stocks/quote/${ticker.toUpperCase()}${query}`,
     {
       authToken: getAuthToken(),
     }
@@ -517,7 +515,7 @@ export async function getStockQuotes(tickers: string[], refresh = false) {
   }
 
   const response = await apiClient<StockQuoteResponse[]>(
-    `/api/stocks/quotes?${params.toString()}`,
+    `/stocks/quotes?${params.toString()}`,
     {
       authToken: getAuthToken(),
     }
@@ -534,7 +532,7 @@ export async function getStockQuotes(tickers: string[], refresh = false) {
 
 export async function getStockHistory(ticker: string, days = 30) {
   return apiClient<StockHistoryResponse>(
-    `/api/stocks/history/${ticker.toUpperCase()}?days=${days}`,
+    `/stocks/history/${ticker.toUpperCase()}?days=${days}`,
     {
       authToken: getAuthToken(),
     }
@@ -543,14 +541,14 @@ export async function getStockHistory(ticker: string, days = 30) {
 
 export async function getMarketOverview(limit = 25) {
   return apiClient<MarketOverviewResponse>(
-    `/api/stocks/overview?limit=${limit}`,
+    `/stocks/overview?limit=${limit}`,
     { authToken: getAuthToken() }
   );
 }
 
 export async function ingestRecentForm4(ticker: string, limit = 10) {
   return apiClient<unknown>(
-    `/api/scraper/sec-form4/${ticker.toUpperCase()}/ingest-recent?limit=${limit}`,
+    `/scraper/sec-form4/${ticker.toUpperCase()}/ingest-recent?limit=${limit}`,
     {
       method: "POST",
       authToken: getAuthToken(),
@@ -560,7 +558,7 @@ export async function ingestRecentForm4(ticker: string, limit = 10) {
 
 export async function ingestRecent13F(cik: string, limit = 3) {
   return apiClient<unknown>(
-    `/api/scraper/sec-13f/${cik}/ingest-recent?limit=${limit}`,
+    `/scraper/sec-13f/${cik}/ingest-recent?limit=${limit}`,
     {
       method: "POST",
       authToken: getAuthToken(),
@@ -570,7 +568,7 @@ export async function ingestRecent13F(cik: string, limit = 3) {
 
 export async function runSchedulerScrape(ticker: string, limit = 10) {
   return apiClient<unknown>(
-    `/api/scheduler/scrape/${ticker.toUpperCase()}?limit=${limit}`,
+    `/scheduler/scrape/${ticker.toUpperCase()}?limit=${limit}`,
     {
       method: "POST",
       authToken: getAuthToken(),
@@ -582,21 +580,24 @@ export async function runFullIngestionPipeline({
   form4Limit = 5,
   thirteenFLimit = 3,
   refreshMarket = true,
-  timeoutMs = 60_000,
+  marketLimit = 25,
+  timeoutMs = 15_000,
 }: {
   form4Limit?: number;
   thirteenFLimit?: number;
   refreshMarket?: boolean;
+  marketLimit?: number;
   timeoutMs?: number;
 } = {}) {
   const params = new URLSearchParams({
     form4_limit: String(form4Limit),
     thirteen_f_limit: String(thirteenFLimit),
     refresh_market: String(refreshMarket),
+    market_limit: String(marketLimit),
   });
 
-  return apiClient<FullIngestionPipelineResponse>(
-    `/api/scheduler/run-ingestion?${params.toString()}`,
+  return apiClient<IngestionRunStartResponse>(
+    `/scheduler/run-ingestion?${params.toString()}`,
     {
       method: "POST",
       authToken: getAuthToken(),
@@ -606,14 +607,14 @@ export async function runFullIngestionPipeline({
 }
 
 export async function getSchedulerStatus() {
-  return apiClient<SchedulerStatusResponse>("/api/scheduler/status", {
+  return apiClient<SchedulerStatusResponse>("/scheduler/status", {
     authToken: getAuthToken(),
   });
 }
 
 export async function getScrapeHistory(limit = 25) {
   const response = await apiClient<ScrapeHistoryResponse>(
-    `/api/scraper/history?limit=${limit}`,
+    `/scraper/history?limit=${limit}`,
     {
       authToken: getAuthToken(),
     }
@@ -641,7 +642,7 @@ export async function importSecCompanyUniverse({
   });
 
   return apiClient<SecCompanyUniverseImportResponse>(
-    `/api/scraper/sec-company-universe/import?${params.toString()}`,
+    `/scraper/sec-company-universe/import?${params.toString()}`,
     {
       method: "POST",
       authToken: getAuthToken(),
@@ -651,12 +652,16 @@ export async function importSecCompanyUniverse({
 
 export async function importStockUniverse(limit = 500) {
   return apiClient<StockUniverseImportResponse>(
-    `/api/stocks/universe/import?limit=${limit}`,
+    `/stocks/universe/import?limit=${limit}`,
     {
       method: "POST",
       authToken: getAuthToken(),
     }
   );
+}
+
+export async function getCompanyUniverseStats() {
+  return apiClient<CompanyUniverseStats>("/stocks/universe/stats");
 }
 
 export async function refreshTrackedStockQuotes(limit = 100, offset = 0) {
@@ -671,14 +676,14 @@ export async function refreshTrackedStockQuotes(limit = 100, offset = 0) {
       priceFetchedAt?: string | null;
       error?: string;
     }[];
-  }>(`/api/stocks/quotes/refresh-tracked?limit=${limit}&offset=${offset}`, {
+  }>(`/stocks/quotes/refresh-tracked?limit=${limit}&offset=${offset}`, {
     method: "POST",
     authToken: getAuthToken(),
   });
 }
 
 export async function trackStock(ticker: string) {
-  return apiClient<unknown>(`/api/stocks/track/${ticker.toUpperCase()}`, {
+  return apiClient<unknown>(`/stocks/track/${ticker.toUpperCase()}`, {
     method: "POST",
     authToken: getAuthToken(),
   });
@@ -805,6 +810,7 @@ export type ScrapeHistoryItem = {
 
 export type SchedulerStatusResponse = {
   running: boolean;
+  schedulerRunning?: boolean;
   jobs: {
     id: string;
     nextRunTime: string | null;
@@ -814,6 +820,13 @@ export type SchedulerStatusResponse = {
   thirteenFMaxFilings?: number;
   refreshMarket?: boolean;
   cooldownHours: number;
+  latestRunId?: string | null;
+  latestStatus?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  durationSeconds?: number | null;
+  latestResult?: FullIngestionPipelineResponse | IngestionRunStartResponse | null;
+  error?: string | null;
 };
 
 export type StockUniverseImportResponse = {
@@ -842,36 +855,94 @@ export type ScrapeHistoryResponse = {
 };
 
 export type IngestionStageResult = {
+  name?: string;
   stage: string;
-  success: boolean;
-  attempted: number;
+  status?: "success" | "partial" | "skipped" | "failed" | string;
+  success?: boolean;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  durationSeconds?: number | null;
+  message?: string | null;
+  attempted?: number | null;
+  processed?: number | null;
+  created?: number | null;
+  updated?: number | null;
+  skipped?: number | null;
+  failed?: number | null;
+  recordsCreated?: number | null;
+  warningCount?: number;
+  errorCount?: number;
+  skippedTickers?: string[];
+  failedTickers?: string[];
+  warnings?: IngestionPipelineIssue[];
+  errors: IngestionPipelineIssue[];
+};
+
+export type IngestionPipelineIssue = {
+  stage?: string;
+  message: string;
+  ticker?: string;
+  fund?: string;
+  cik?: string;
+  accessionNumber?: string;
+  exchange?: string | null;
+  error?: string;
+};
+
+export type IngestionPipelineTotals = {
+  attempted?: number;
   processed: number;
   skipped: number;
   failed: number;
+  created?: number;
+  updated?: number;
   recordsCreated: number;
-  errors: {
-    ticker?: string;
-    fund?: string;
-    cik?: string;
-    accessionNumber?: string;
-    error: string;
-  }[];
+  warnings?: number;
+  errors?: number;
+};
+
+export type IngestionRunStartResponse = {
+  success: boolean;
+  status: "started" | "running" | string;
+  runId: string | null;
+  message: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  durationSeconds: number | null;
+  marketLimit?: number;
 };
 
 export type FullIngestionPipelineResponse = {
   success: boolean;
   status: string;
+  message?: string;
   startedAt: string;
-  completedAt: string;
-  durationSeconds: number;
+  completedAt: string | null;
+  durationSeconds: number | null;
+  marketLimit?: number;
   companiesFound?: number;
+  totalCompanies?: number;
+  eligibleForm4Companies?: number;
+  eligibleMarketCompanies?: number;
+  form4LimitApplied?: boolean;
+  marketLimitApplied?: boolean;
+  companyUniverse?: CompanyUniverseStats;
   fundsFound?: number;
   stages?: IngestionStageResult[];
-  totals?: {
-    processed: number;
-    skipped: number;
-    failed: number;
-    recordsCreated: number;
-  };
+  totals?: IngestionPipelineTotals;
+  warnings?: IngestionPipelineIssue[];
+  errors?: IngestionPipelineIssue[];
   error?: string;
+};
+
+export type CompanyUniverseStats = {
+  totalCompanies: number;
+  companiesWithCik: number;
+  companiesWithoutCik: number;
+  eligibleForForm4: number;
+  eligibleForMarketRefresh: number;
+  byExchange: {
+    exchange: string;
+    count: number;
+  }[];
 };

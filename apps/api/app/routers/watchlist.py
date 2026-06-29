@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.security import get_current_user
 from app.db.database import get_db
-from app.models import Company, MoneySignalScore, Signal, Watchlist
+from app.models import Company, MoneySignalScore, Signal, User, Watchlist
 from app.services.market_data_service import (
     format_market_snapshot,
     get_latest_market_snapshot,
@@ -79,7 +80,11 @@ def get_watchlist(db: Session = Depends(get_db)):
 
 
 @router.post("/{ticker}")
-def add_to_watchlist(ticker: str, db: Session = Depends(get_db)):
+def add_to_watchlist(
+    ticker: str,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
     symbol = ticker.strip().upper()
 
     company = db.query(Company).filter(Company.ticker == symbol).first()
@@ -123,7 +128,11 @@ def add_to_watchlist(ticker: str, db: Session = Depends(get_db)):
 
 
 @router.delete("/{ticker}")
-def remove_from_watchlist(ticker: str, db: Session = Depends(get_db)):
+def remove_from_watchlist(
+    ticker: str,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
     symbol = ticker.strip().upper()
 
     company = db.query(Company).filter(Company.ticker == symbol).first()

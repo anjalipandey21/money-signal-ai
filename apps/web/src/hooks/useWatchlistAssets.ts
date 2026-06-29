@@ -15,6 +15,7 @@ const fallbackWatchlistAssets: WatchlistAsset[] = [
     direction: "bullish",
     alertStatus: "Active",
     lastUpdated: "Today, 09:42 EST",
+    freshnessLabel: "Demo fallback",
   },
   {
     ticker: "PLTR",
@@ -27,6 +28,7 @@ const fallbackWatchlistAssets: WatchlistAsset[] = [
     direction: "bullish",
     alertStatus: "Active",
     lastUpdated: "Today, 10:18 EST",
+    freshnessLabel: "Demo fallback",
   },
   {
     ticker: "TSLA",
@@ -39,6 +41,7 @@ const fallbackWatchlistAssets: WatchlistAsset[] = [
     direction: "mixed",
     alertStatus: "Watch",
     lastUpdated: "Yesterday, 15:05 EST",
+    freshnessLabel: "Demo fallback",
   },
 ];
 

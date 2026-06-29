@@ -1,5 +1,21 @@
+import { getClerkAuthToken } from "@/lib/authSession";
+
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8001";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8001/api/v1";
+
+function normalizeApiBaseUrl(baseUrl: string) {
+  const trimmedBaseUrl = baseUrl.replace(/\/$/, "");
+
+  if (/\/api\/v\d+$/.test(trimmedBaseUrl)) {
+    return trimmedBaseUrl;
+  }
+
+  if (trimmedBaseUrl.endsWith("/api")) {
+    return `${trimmedBaseUrl}/v1`;
+  }
+
+  return `${trimmedBaseUrl}/api/v1`;
+}
 
 type ApiRequestOptions = RequestInit & {
   authToken?: string;
@@ -10,7 +26,9 @@ export async function apiClient<T>(
   path: string,
   options: ApiRequestOptions = {}
 ): Promise<T> {
-  const url = `${API_BASE_URL}${path}`;
+  const normalizedBaseUrl = normalizeApiBaseUrl(API_BASE_URL);
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const url = `${normalizedBaseUrl}${normalizedPath}`;
   const { authToken, timeoutMs, ...requestOptions } = options;
   const controller = timeoutMs ? new AbortController() : null;
   const timeoutId = controller
@@ -21,8 +39,10 @@ export async function apiClient<T>(
 
   headers.set("Content-Type", "application/json");
 
-  if (authToken) {
-    headers.set("Authorization", `Bearer ${authToken}`);
+  const token = authToken ?? (await getClerkAuthToken());
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
   try {

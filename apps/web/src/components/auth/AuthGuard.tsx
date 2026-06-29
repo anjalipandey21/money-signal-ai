@@ -1,9 +1,9 @@
 "use client";
 
+import { useAuth } from "@clerk/nextjs";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
-import { getAuthSession } from "@/lib/authSession";
+import { useEffect } from "react";
 
 type AuthGuardProps = {
   children: ReactNode;
@@ -12,22 +12,15 @@ type AuthGuardProps = {
 export function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [isChecking, setIsChecking] = useState(true);
-  const [allowed, setAllowed] = useState(false);
+  const { isLoaded, isSignedIn } = useAuth();
 
   useEffect(() => {
-    const session = getAuthSession();
-
-    if (!session) {
-      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-      return;
+    if (isLoaded && !isSignedIn) {
+      router.replace(`/login?redirect_url=${encodeURIComponent(pathname)}`);
     }
+  }, [isLoaded, isSignedIn, pathname, router]);
 
-    setAllowed(true);
-    setIsChecking(false);
-  }, [pathname, router]);
-
-  if (isChecking) {
+  if (!isLoaded) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#10131b] text-[#e0e2ed]">
         <div className="rounded border border-[#424754] bg-[#0d121f] px-6 py-4 shadow-2xl">
@@ -39,7 +32,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  if (!allowed) return null;
+  if (!isSignedIn) return null;
 
   return <>{children}</>;
 }

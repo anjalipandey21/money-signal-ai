@@ -30,6 +30,41 @@ def _decimal(value: float | int | None) -> Decimal | None:
     return Decimal(str(value))
 
 
+def _skip_reason(
+    holding: dict[str, Any],
+    accession_number: str | None,
+    period_end_date: date | None,
+) -> str | None:
+    if not accession_number:
+        return "missing_accession_number"
+
+    if period_end_date is None:
+        return "missing_report_period"
+
+    if not (holding.get("issuerName") or "").strip():
+        return "missing_issuer"
+
+    if not _normalize_cusip(holding.get("cusip")):
+        return "missing_cusip"
+
+    shares = _decimal(holding.get("shares"))
+    market_value = _decimal(holding.get("valueUsd"))
+
+    if shares is None:
+        return "missing_shares"
+
+    if shares <= 0:
+        return "zero_or_negative_shares"
+
+    if market_value is None:
+        return "missing_value"
+
+    if market_value <= 0:
+        return "zero_or_negative_value"
+
+    return None
+
+
 def _quarter_from_date(value: date | None) -> str | None:
     if value is None:
         return None
@@ -135,6 +170,28 @@ def _position_status(previous_shares: Decimal | None, shares: Decimal | None) ->
     return "UNCHANGED"
 
 
+def _holding_already_exists(
+    db: Session,
+    fund: Fund,
+    fund_filing: FundFiling,
+    company: Company,
+    quarter: str | None,
+    shares: Decimal | None,
+    market_value: Decimal | None,
+) -> bool:
+    return (
+        db.query(FundHolding)
+        .filter(FundHolding.fund_id == fund.id)
+        .filter(FundHolding.filing_id == fund_filing.id)
+        .filter(FundHolding.company_id == company.id)
+        .filter(FundHolding.quarter == quarter)
+        .filter(FundHolding.shares == shares)
+        .filter(FundHolding.market_value == market_value)
+        .first()
+        is not None
+    )
+
+
 def _create_signal_for_holding(
     db: Session,
     company: Company,
@@ -198,13 +255,16 @@ def ingest_13f_filing(
     cik: str,
     filing: dict[str, Any],
 ) -> dict[str, Any]:
-    accession_number = filing["accessionNumber"]
+    accession_number = filing.get("accessionNumber")
 
-    existing_processed = (
-        db.query(ProcessedFiling)
-        .filter(ProcessedFiling.accession_number == accession_number)
-        .first()
-    )
+    existing_processed = None
+
+    if accession_number:
+        existing_processed = (
+            db.query(ProcessedFiling)
+            .filter(ProcessedFiling.accession_number == accession_number)
+            .first()
+        )
 
     if existing_processed and existing_processed.processing_status == "processed":
         return {
@@ -213,6 +273,14 @@ def ingest_13f_filing(
             "accessionNumber": accession_number,
             "recordsCreated": 0,
             "companiesMatched": 0,
+            "filingsCreated": 0,
+            "filingsDuplicateSkipped": 1,
+            "holdingsCreated": 0,
+            "holdingsUpdated": 0,
+            "duplicateSkipped": 0,
+            "invalidSkipped": 0,
+            "parserWarningCount": 0,
+            "skipReasons": {},
         }
 
     fund = _get_or_create_fund(db, cik)
@@ -226,6 +294,44 @@ def ingest_13f_filing(
     filing_date = _parse_date(filing.get("filingDate"))
     period_end_date = _parse_date(filing.get("reportDate"))
     quarter = _quarter_from_date(period_end_date)
+    skip_reasons: dict[str, int] = {}
+    invalid_skipped = 0
+    duplicate_skipped = 0
+    filings_created = 0
+    filings_duplicate_skipped = 0
+    holdings_updated = 0
+
+    if not accession_number or period_end_date is None:
+        reason = (
+            "missing_accession_number"
+            if not accession_number
+            else "missing_report_period"
+        )
+        invalid_skipped = len(parsed.get("holdings", []))
+        skip_reasons[reason] = invalid_skipped
+
+        return {
+            "status": "processed",
+            "fund": fund.name,
+            "fundCik": fund.cik,
+            "accessionNumber": accession_number,
+            "holdingCount": parsed["holdingCount"],
+            "companiesMatched": 0,
+            "companiesUnmatched": 0,
+            "recordsCreated": 0,
+            "filingsCreated": 0,
+            "filingsDuplicateSkipped": 0,
+            "holdingsCreated": 0,
+            "holdingsUpdated": 0,
+            "duplicateSkipped": 0,
+            "invalidSkipped": invalid_skipped,
+            "parserWarningCount": parsed.get("validationWarningCount", 0),
+            "skipReasons": skip_reasons,
+            "createdHoldingIds": [],
+            "impactedTickers": [],
+            "scores": [],
+            "message": "No valid new 13F holdings found.",
+        }
 
     fund_filing = (
         db.query(FundFiling)
@@ -233,7 +339,9 @@ def ingest_13f_filing(
         .first()
     )
 
-    if not fund_filing:
+    if fund_filing:
+        filings_duplicate_skipped = 1
+    else:
         fund_filing = FundFiling(
             fund_id=fund.id,
             form_type=filing.get("formType") or "13F-HR",
@@ -245,6 +353,7 @@ def ingest_13f_filing(
 
         db.add(fund_filing)
         db.flush()
+        filings_created = 1
 
     total_value = Decimal(str(parsed.get("totalValueUsd") or 0))
 
@@ -255,6 +364,13 @@ def ingest_13f_filing(
     created_holding_ids = []
 
     for raw_holding in parsed["holdings"]:
+        skip_reason = _skip_reason(raw_holding, accession_number, period_end_date)
+
+        if skip_reason:
+            invalid_skipped += 1
+            skip_reasons[skip_reason] = skip_reasons.get(skip_reason, 0) + 1
+            continue
+
         company = _find_company_for_holding(db, raw_holding)
 
         if not company:
@@ -265,6 +381,18 @@ def ingest_13f_filing(
 
         shares = _decimal(raw_holding.get("shares"))
         market_value = _decimal(raw_holding.get("valueUsd"))
+
+        if _holding_already_exists(
+            db,
+            fund,
+            fund_filing,
+            company,
+            quarter,
+            shares,
+            market_value,
+        ):
+            duplicate_skipped += 1
+            continue
 
         previous = _get_previous_holding(
             db,
@@ -324,7 +452,11 @@ def ingest_13f_filing(
 
     processed.processing_status = "processed"
     processed.records_created = records_created
-    processed.error_message = None
+    processed.error_message = (
+        None
+        if records_created
+        else "No valid new 13F holdings found."
+    )
     processed.processed_at = datetime.utcnow()
 
     db.add(processed)
@@ -343,7 +475,18 @@ def ingest_13f_filing(
         "companiesMatched": companies_matched,
         "companiesUnmatched": companies_unmatched,
         "recordsCreated": records_created,
+        "filingsCreated": filings_created,
+        "filingsDuplicateSkipped": filings_duplicate_skipped,
+        "holdingsCreated": records_created,
+        "holdingsUpdated": holdings_updated,
+        "duplicateSkipped": duplicate_skipped,
+        "invalidSkipped": invalid_skipped,
+        "parserWarningCount": parsed.get("validationWarningCount", 0),
+        "skipReasons": skip_reasons,
         "createdHoldingIds": created_holding_ids,
         "impactedTickers": sorted(impacted_tickers),
         "scores": scores,
+        "message": "No valid new 13F holdings found."
+        if not records_created
+        else None,
     }

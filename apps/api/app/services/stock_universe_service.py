@@ -4,7 +4,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.models import Company
-from app.services.sec_client import get_sec_headers
+from app.services.sec_client import SECClientError, get_json
 
 
 SEC_COMPANY_TICKERS_EXCHANGE_URL = (
@@ -103,12 +103,12 @@ def _looks_like_common_stock(
 
 def fetch_sec_stock_universe() -> list[dict[str, Any]]:
     try:
-        with httpx.Client(timeout=30, headers=get_sec_headers()) as client:
-            response = client.get(SEC_COMPANY_TICKERS_EXCHANGE_URL)
-            response.raise_for_status()
-            payload = response.json()
+        payload = get_json(
+            SEC_COMPANY_TICKERS_EXCHANGE_URL,
+            request_kind="company ticker universe",
+        )
 
-    except httpx.HTTPError as error:
+    except (SECClientError, httpx.HTTPError) as error:
         raise StockUniverseError("Failed to fetch SEC company ticker universe") from error
 
     fields = payload.get("fields", [])
@@ -142,11 +142,45 @@ def fetch_sec_stock_universe() -> list[dict[str, Any]]:
     return universe
 
 
+def find_sec_company_by_ticker(ticker: str) -> dict[str, Any] | None:
+    symbol = _clean_ticker(ticker)
+
+    if not symbol:
+        return None
+
+    for item in fetch_sec_stock_universe():
+        if item["ticker"] == symbol:
+            return item
+
+    return None
+
+
+def _enrich_profile(ticker: str) -> dict[str, str | None]:
+    try:
+        import yfinance as yf
+
+        info = yf.Ticker(ticker).get_info()
+
+        return {
+            "sector": info.get("sector"),
+            "industry": info.get("industry"),
+            "website": info.get("website"),
+        }
+
+    except Exception:
+        return {
+            "sector": None,
+            "industry": None,
+            "website": None,
+        }
+
+
 def import_stock_universe(
     db: Session,
     limit: int = 500,
     include_funds: bool = False,
     include_otc: bool = False,
+    enrich_profile: bool = False,
 ) -> dict[str, Any]:
     universe = fetch_sec_stock_universe()
 
@@ -206,16 +240,25 @@ def import_stock_universe(
             if not company.cik and safe_cik:
                 company.cik = safe_cik
 
+            if enrich_profile and (not company.sector or not company.industry):
+                profile = _enrich_profile(ticker)
+                company.sector = company.sector or profile["sector"]
+                company.industry = company.industry or profile["industry"]
+                company.website = company.website or profile["website"]
+
             updated += 1
 
         else:
+            profile = _enrich_profile(ticker) if enrich_profile else {}
+
             company = Company(
                 ticker=ticker,
                 name=name,
                 cik=safe_cik,
                 exchange=exchange,
-                sector=None,
-                industry=None,
+                sector=profile.get("sector"),
+                industry=profile.get("industry"),
+                website=profile.get("website"),
             )
             db.add(company)
             created += 1
@@ -231,4 +274,5 @@ def import_stock_universe(
         "skipped": skipped,
         "duplicateCikSkipped": duplicate_cik_skipped,
         "limit": limit,
+        "enrichProfile": enrich_profile,
     }

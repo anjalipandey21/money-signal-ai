@@ -6,12 +6,17 @@ import { useEffect, useMemo, useState } from "react";
 import {
   getSchedulerStatus,
   getScrapeHistory,
+  getCompanyUniverseStats,
   importSecCompanyUniverse,
   ingestRecent13F,
   ingestRecentForm4,
   runFullIngestionPipeline,
   runSchedulerScrape,
   type FullIngestionPipelineResponse,
+  type CompanyUniverseStats,
+  type IngestionRunStartResponse,
+  type IngestionPipelineIssue,
+  type IngestionStageResult,
   type SchedulerStatusResponse,
   type ScrapeHistoryItem,
   type SecCompanyUniverseImportResponse,
@@ -22,12 +27,18 @@ type ActionResult = {
   payload: unknown;
 };
 
+const POLL_INTERVAL_MS = 3_000;
+const MAX_PIPELINE_POLLS = 600;
+
 function statusClass(status?: string) {
   if (!status) return "border-slate-700 bg-slate-800 text-slate-300";
+  if (status === "partial" || status.includes("warning")) {
+    return "border-amber-300/30 bg-amber-300/10 text-amber-200";
+  }
   if (status.includes("processed") || status === "success") {
     return "border-emerald-400/30 bg-emerald-400/10 text-emerald-300";
   }
-  if (status === "skipped") {
+  if (status === "skipped" || status === "timed_out") {
     return "border-amber-300/30 bg-amber-300/10 text-amber-200";
   }
   if (status === "failed" || status === "error") {
@@ -52,6 +63,164 @@ function StatCard({
       </p>
       <p className="mt-3 text-[28px] font-semibold text-[#e0e2ed]">{value}</p>
       <p className="mt-1 text-[12px] text-[#c2c6d6]">{detail}</p>
+    </div>
+  );
+}
+
+function formatCount(value?: number | null) {
+  return value ?? "--";
+}
+
+function formatDuration(value?: number | null) {
+  return value == null ? "--" : `${value}s`;
+}
+
+function stageName(stage: IngestionStageResult) {
+  return stage.name ?? stage.stage;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function IssueList({
+  title,
+  issues,
+  tone,
+}: {
+  title: string;
+  issues?: IngestionPipelineIssue[];
+  tone: "warning" | "error";
+}) {
+  if (!issues?.length) return null;
+
+  const classes =
+    tone === "warning"
+      ? "border-amber-300/30 bg-amber-300/10 text-amber-100"
+      : "border-red-300/30 bg-red-300/10 text-red-100";
+
+  return (
+    <div className={`mt-4 rounded border p-3 ${classes}`}>
+      <p className="font-mono text-[11px] uppercase tracking-wider">{title}</p>
+      <ul className="mt-2 space-y-1 text-[12px] leading-5">
+        {issues.slice(0, 5).map((issue, index) => (
+          <li key={`${issue.stage ?? title}-${issue.ticker ?? issue.cik ?? index}`}>
+            <span className="font-semibold">
+              {issue.ticker ?? issue.fund ?? issue.cik ?? issue.stage ?? "Pipeline"}
+            </span>
+            {": "}
+            {issue.message}
+            {issue.error ? ` (${issue.error})` : ""}
+          </li>
+        ))}
+      </ul>
+      {issues.length > 5 ? (
+        <p className="mt-2 text-[12px] opacity-80">
+          Showing 5 of {issues.length}. See raw response for the full sample.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function PipelineResultDetails({
+  result,
+}: {
+  result: FullIngestionPipelineResponse;
+}) {
+  const totals = result.totals;
+
+  return (
+    <div className="mt-5 space-y-4">
+      {totals ? (
+        <div className="grid grid-cols-2 gap-3">
+          <StatCard
+            label="Processed"
+            value={formatCount(totals.processed)}
+            detail="Items completed"
+          />
+          <StatCard
+            label="Records"
+            value={formatCount(totals.recordsCreated)}
+            detail={`${formatCount(totals.skipped)} skipped · ${formatCount(
+              totals.failed
+            )} failed`}
+          />
+        </div>
+      ) : null}
+
+      {result.stages?.length ? (
+        <div className="overflow-hidden rounded border border-[#424754]/50">
+          <table className="w-full min-w-[640px] text-left text-[12px]">
+            <thead className="bg-[#181c23] font-mono text-[10px] uppercase tracking-wider text-[#8c909f]">
+              <tr>
+                <th className="px-3 py-2">Stage</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2 text-right">Done</th>
+                <th className="px-3 py-2 text-right">Created</th>
+                <th className="px-3 py-2 text-right">Skipped</th>
+                <th className="px-3 py-2 text-right">Failed</th>
+                <th className="px-3 py-2 text-right">Time</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#424754]/40">
+              {result.stages.map((stage, index) => (
+                <tr key={`${stageName(stage)}-${index}`} className="bg-[#0d121f]">
+                  <td className="px-3 py-3 font-semibold text-[#e0e2ed]">
+                    <p>{stageName(stage)}</p>
+                    {stage.message ? (
+                      <p className="mt-1 text-[11px] font-normal leading-4 text-[#8c909f]">
+                        {stage.message}
+                      </p>
+                    ) : null}
+                    {stage.skippedTickers?.length ? (
+                      <p className="mt-1 text-[11px] font-normal leading-4 text-amber-200/80">
+                        Skipped: {stage.skippedTickers.slice(0, 6).join(", ")}
+                        {stage.skippedTickers.length > 6 ? "..." : ""}
+                      </p>
+                    ) : null}
+                    {stage.failedTickers?.length ? (
+                      <p className="mt-1 text-[11px] font-normal leading-4 text-red-200/80">
+                        Failed: {stage.failedTickers.slice(0, 6).join(", ")}
+                        {stage.failedTickers.length > 6 ? "..." : ""}
+                      </p>
+                    ) : null}
+                  </td>
+                  <td className="px-3 py-3">
+                    <span
+                      className={`rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase ${statusClass(
+                        stage.status
+                      )}`}
+                    >
+                      {stage.status ?? "success"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    {formatCount(stage.processed)}
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    {formatCount(stage.created ?? stage.recordsCreated)}
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    {formatCount(stage.skipped)}
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    {formatCount(stage.failed)}
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    {formatDuration(stage.durationSeconds)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      <IssueList title="Warnings" issues={result.warnings} tone="warning" />
+      <IssueList title="Errors" issues={result.errors} tone="error" />
     </div>
   );
 }
@@ -89,6 +258,7 @@ export default function ScraperAdminPage() {
   const [form4Limit, setForm4Limit] = useState(10);
   const [fundCik, setFundCik] = useState("1067983");
   const [thirteenFLimit, setThirteenFLimit] = useState(3);
+  const [marketLimit, setMarketLimit] = useState(25);
   const [universeLimit, setUniverseLimit] = useState(100);
   const [enrichProfile, setEnrichProfile] = useState(false);
   const [refreshMarket, setRefreshMarket] = useState(true);
@@ -98,17 +268,139 @@ export default function ScraperAdminPage() {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<ScrapeHistoryItem[]>([]);
+  const [universeStats, setUniverseStats] = useState<CompanyUniverseStats | null>(
+    null
+  );
   const [schedulerStatus, setSchedulerStatus] =
     useState<SchedulerStatusResponse | null>(null);
 
   async function refreshAdminData() {
-    const [statusResponse, historyResponse] = await Promise.all([
-      getSchedulerStatus(),
-      getScrapeHistory(50),
-    ]);
+    const [statusResponse, historyResponse, universeStatsResponse] =
+      await Promise.all([
+        getSchedulerStatus(),
+        getScrapeHistory(50),
+        getCompanyUniverseStats(),
+      ]);
 
     setSchedulerStatus(statusResponse);
     setHistory(historyResponse);
+    setUniverseStats(universeStatsResponse);
+  }
+
+  async function pollPipelineResult(runId: string) {
+    for (let attempt = 0; attempt < MAX_PIPELINE_POLLS; attempt += 1) {
+      await sleep(POLL_INTERVAL_MS);
+
+      const [statusResponse, historyResponse] = await Promise.all([
+        getSchedulerStatus(),
+        getScrapeHistory(50),
+      ]);
+
+      setSchedulerStatus(statusResponse);
+      setHistory(historyResponse);
+
+      if (statusResponse.latestRunId !== runId) {
+        continue;
+      }
+
+      if (statusResponse.latestResult) {
+        setResult({
+          title: "Full ingestion pipeline",
+          payload: statusResponse.latestResult,
+        });
+      }
+
+      if (!statusResponse.running) {
+        return (
+          statusResponse.latestResult ?? {
+            success: statusResponse.latestStatus !== "failed",
+            status: statusResponse.latestStatus ?? "complete",
+            runId,
+            message: "Pipeline finished. Check Scrape History for details.",
+            startedAt: statusResponse.startedAt,
+            completedAt: statusResponse.completedAt,
+            durationSeconds: statusResponse.durationSeconds,
+          }
+        );
+      }
+    }
+
+    return {
+      success: false,
+      status: "timed_out",
+      runId,
+      message:
+        "Pipeline is still running. Keep this page open or check Scrape History for the latest result.",
+      startedAt: schedulerStatus?.startedAt ?? null,
+      completedAt: null,
+      durationSeconds: null,
+    };
+  }
+
+  async function runFullPipelineAction() {
+    const title = "Full ingestion pipeline";
+
+    try {
+      setIsRunning(true);
+      setActiveActionTitle(title);
+      setError(null);
+      setResult({
+        title,
+        payload: {
+          success: true,
+          status: "starting",
+          message: "Starting pipeline in the background...",
+          startedAt: new Date().toISOString(),
+          completedAt: null,
+          durationSeconds: null,
+        },
+      });
+
+      const startPayload = await runFullIngestionPipeline({
+        form4Limit,
+        thirteenFLimit,
+        refreshMarket,
+        marketLimit,
+      });
+
+      setResult({ title, payload: startPayload });
+
+      if (!startPayload.runId) {
+        throw new Error("Pipeline did not return a run id.");
+      }
+
+      const finalPayload = await pollPipelineResult(startPayload.runId);
+
+      setResult({ title, payload: finalPayload });
+    } catch (actionError) {
+      const message =
+        actionError instanceof Error
+          ? actionError.message
+          : "Failed to start ingestion pipeline";
+
+      setResult({
+        title,
+        payload: {
+          success: false,
+          status: "error",
+          message,
+        },
+      });
+      setError(message);
+    } finally {
+      try {
+        await refreshAdminData();
+      } catch (refreshError) {
+        setError(
+          refreshError instanceof Error
+            ? refreshError.message
+            : "Failed to refresh scrape history"
+        );
+      } finally {
+        setIsRunning(false);
+        setActiveActionTitle(null);
+      }
+    }
   }
 
   useEffect(() => {
@@ -116,15 +408,18 @@ export default function ScraperAdminPage() {
 
     async function loadAdminData() {
       try {
-        const [statusResponse, historyResponse] = await Promise.all([
-          getSchedulerStatus(),
-          getScrapeHistory(50),
-        ]);
+        const [statusResponse, historyResponse, universeStatsResponse] =
+          await Promise.all([
+            getSchedulerStatus(),
+            getScrapeHistory(50),
+            getCompanyUniverseStats(),
+          ]);
 
         if (!isMounted) return;
 
         setSchedulerStatus(statusResponse);
         setHistory(historyResponse);
+        setUniverseStats(universeStatsResponse);
       } catch (loadError) {
         if (!isMounted) return;
 
@@ -202,8 +497,13 @@ export default function ScraperAdminPage() {
   const latestRun = history[0];
   const pipelineResult = result?.payload as
     | FullIngestionPipelineResponse
+    | IngestionRunStartResponse
     | SecCompanyUniverseImportResponse
     | undefined;
+  const fullPipelineResult =
+    pipelineResult && "stages" in pipelineResult
+      ? (pipelineResult as FullIngestionPipelineResponse)
+      : null;
   const resultMessage =
     result &&
     typeof (result.payload as { message?: unknown }).message === "string"
@@ -250,9 +550,17 @@ export default function ScraperAdminPage() {
 
         <section className="grid gap-4 md:grid-cols-4">
           <StatCard
-            label="Scheduler"
-            value={schedulerStatus?.running ? "Running" : "Stopped"}
-            detail={`Every ${schedulerStatus?.scheduleHours ?? "--"}h`}
+            label="Pipeline"
+            value={
+              schedulerStatus?.running
+                ? "Running"
+                : schedulerStatus?.latestStatus ?? "Idle"
+            }
+            detail={
+              schedulerStatus?.latestRunId
+                ? `Run ${schedulerStatus.latestRunId.slice(0, 8)}`
+                : `Scheduled every ${schedulerStatus?.scheduleHours ?? "--"}h`
+            }
           />
           <StatCard
             label="Form 4 Limit"
@@ -269,6 +577,51 @@ export default function ScraperAdminPage() {
             value={totalRecords}
             detail={`${history.length} scrape history rows`}
           />
+        </section>
+
+        <section className="rounded border border-[#424754]/60 bg-[#0d121f] p-5">
+          <div className="flex flex-col justify-between gap-2 md:flex-row md:items-end">
+            <div>
+              <p className="font-mono text-[11px] uppercase tracking-wider text-[#8c909f]">
+                Company Universe
+              </p>
+              <h2 className="mt-1 text-[20px] font-semibold">
+                Dynamic database universe
+              </h2>
+            </div>
+            <p className="text-[12px] text-[#8c909f]">
+              Full pipeline reads the current companies table.
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-4">
+            <StatCard
+              label="Total"
+              value={formatCount(universeStats?.totalCompanies)}
+              detail="Companies in database"
+            />
+            <StatCard
+              label="With CIK"
+              value={formatCount(universeStats?.companiesWithCik)}
+              detail={`${formatCount(
+                universeStats?.companiesWithoutCik
+              )} without CIK`}
+            />
+            <StatCard
+              label="Form 4 Eligible"
+              value={formatCount(universeStats?.eligibleForForm4)}
+              detail="Has CIK and common-stock profile"
+            />
+            <StatCard
+              label="Market Eligible"
+              value={formatCount(universeStats?.eligibleForMarketRefresh)}
+              detail={
+                universeStats?.byExchange?.length
+                  ? `Top exchange: ${universeStats.byExchange[0].exchange}`
+                  : "Awaiting universe stats"
+              }
+            />
+          </div>
         </section>
 
         {error ? (
@@ -304,7 +657,7 @@ export default function ScraperAdminPage() {
               </span>
             </div>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <div className="mt-6 grid gap-4 md:grid-cols-4">
               <label className="space-y-2">
                 <span className="font-mono text-[11px] uppercase text-[#8c909f]">
                   Form 4 Limit
@@ -335,6 +688,20 @@ export default function ScraperAdminPage() {
                 />
               </label>
 
+              <label className="space-y-2">
+                <span className="font-mono text-[11px] uppercase text-[#8c909f]">
+                  Market Limit
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={marketLimit}
+                  onChange={(event) => setMarketLimit(Number(event.target.value))}
+                  className="w-full rounded border border-[#424754] bg-[#181c23] px-3 py-2 text-[14px] outline-none focus:border-[#adc6ff]"
+                />
+              </label>
+
               <label className="flex items-end gap-3 rounded border border-[#424754]/50 bg-[#181c23] px-3 py-2">
                 <input
                   type="checkbox"
@@ -351,15 +718,7 @@ export default function ScraperAdminPage() {
             <div className="mt-5">
               <ActionButton
                 disabled={isRunning}
-                onClick={() =>
-                  runAction("Full ingestion pipeline", () =>
-                    runFullIngestionPipeline({
-                      form4Limit,
-                      thirteenFLimit,
-                      refreshMarket,
-                    })
-                  )
-                }
+                onClick={runFullPipelineAction}
               >
                 {activeActionTitle === "Full ingestion pipeline"
                   ? "Running Pipeline..."
@@ -394,6 +753,9 @@ export default function ScraperAdminPage() {
                   <p className="mt-4 rounded border border-[#424754]/50 bg-[#181c23] p-3 text-[13px] leading-6 text-[#c2c6d6]">
                     {resultMessage}
                   </p>
+                ) : null}
+                {fullPipelineResult ? (
+                  <PipelineResultDetails result={fullPipelineResult} />
                 ) : null}
               </>
             ) : (

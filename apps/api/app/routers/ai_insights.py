@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.security import get_current_admin_user
 from app.db.database import get_db
-from app.models import AIInsight, Company
+from app.models import AIInsight, Company, User
 from app.services.ai_explanation_service import (
     generate_ai_insight_by_ticker,
     generate_ai_insights_for_all_companies,
@@ -12,7 +13,10 @@ router = APIRouter(prefix="/ai-insights", tags=["AI Insights"])
 
 
 @router.post("/generate")
-def generate_all_ai_insights(db: Session = Depends(get_db)):
+def generate_all_ai_insights(
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_admin_user),
+):
     results = generate_ai_insights_for_all_companies(db)
 
     return {
@@ -23,7 +27,11 @@ def generate_all_ai_insights(db: Session = Depends(get_db)):
 
 
 @router.post("/generate/{ticker}")
-def generate_single_ai_insight(ticker: str, db: Session = Depends(get_db)):
+def generate_single_ai_insight(
+    ticker: str,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_admin_user),
+):
     result = generate_ai_insight_by_ticker(db, ticker)
 
     if not result:

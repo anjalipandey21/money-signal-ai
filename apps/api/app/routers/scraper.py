@@ -1,8 +1,15 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.core.security import get_current_admin_user
 from app.db.database import get_db
-from app.models import Company
+from app.models import Company, ScrapeHistory, User
+from app.services.form13f_ingestion_service import ingest_13f_filing
+from app.services.form13f_parser import Form13FParserError, parse_13f_information_table
+from app.services.form4_ingestion_service import ingest_form4_filing
+from app.services.form4_parser import Form4ParserError, parse_form4_xml
 from app.services.sec_client import (
     SECClientError,
     get_13f_information_table_document,
@@ -10,15 +17,53 @@ from app.services.sec_client import (
     get_recent_13f_filings,
     get_recent_form4_filings,
 )
-from app.services.form13f_parser import Form13FParserError, parse_13f_information_table
-from app.services.form4_parser import Form4ParserError, parse_form4_xml
-from app.services.form4_ingestion_service import ingest_form4_filing
-from app.models import Company, ScrapeHistory
-from app.services.form13f_ingestion_service import ingest_13f_filing
-from app.services.sec_client import get_recent_13f_filings
+from app.services.stock_universe_service import StockUniverseError, import_stock_universe
 
 
-router = APIRouter(prefix="/scraper", tags=["Scraper"])
+router = APIRouter(
+    prefix="/scraper",
+    tags=["Scraper"],
+    dependencies=[Depends(get_current_admin_user)],
+)
+
+
+@router.post("/sec-company-universe/import")
+def import_sec_company_universe(
+    limit: int = Query(100, ge=1, le=5000),
+    enrich_profile: bool = Query(False),
+    include_funds: bool = Query(False),
+    include_otc: bool = Query(False),
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_admin_user),
+):
+    started_at = datetime.utcnow()
+
+    try:
+        result = import_stock_universe(
+            db,
+            limit=limit,
+            include_funds=include_funds,
+            include_otc=include_otc,
+            enrich_profile=enrich_profile,
+        )
+
+    except StockUniverseError as error:
+        db.rollback()
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+    except Exception as error:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(error)) from error
+
+    completed_at = datetime.utcnow()
+
+    return {
+        "success": True,
+        "startedAt": started_at.isoformat(),
+        "completedAt": completed_at.isoformat(),
+        "durationSeconds": round((completed_at - started_at).total_seconds(), 2),
+        **result,
+    }
 
 
 @router.get("/sec-form4/{ticker}")
@@ -110,6 +155,7 @@ def parse_latest_sec_form4_filing(
 def ingest_latest_sec_form4_filing(
     ticker: str,
     db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_admin_user),
 ):
     symbol = ticker.strip().upper()
 
@@ -164,7 +210,9 @@ def ingest_recent_sec_form4_filings(
     ticker: str,
     limit: int = Query(10, ge=1, le=25),
     db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_admin_user),
 ):
+    started_at = datetime.utcnow()
     symbol = ticker.strip().upper()
 
     company = db.query(Company).filter(Company.ticker == symbol).first()
@@ -221,10 +269,15 @@ def ingest_recent_sec_form4_filings(
                 )
 
         db.commit()
+        completed_at = datetime.utcnow()
 
         return {
+            "success": error_count == 0,
             "ticker": company.ticker,
             "companyName": company.name,
+            "startedAt": started_at.isoformat(),
+            "completedAt": completed_at.isoformat(),
+            "durationSeconds": round((completed_at - started_at).total_seconds(), 2),
             "filingsFound": len(filings),
             "processedCount": processed_count,
             "skippedCount": skipped_count,
@@ -253,23 +306,27 @@ def get_scrape_history(
         .all()
     )
 
-    return [
-        {
-            "id": row.id,
-            "ticker": row.ticker,
-            "sourceType": row.source_type,
-            "status": row.status,
-            "filingsFound": row.filings_found,
-            "filingsProcessed": row.filings_processed,
-            "filingsSkipped": row.filings_skipped,
-            "filingsFailed": row.filings_failed,
-            "recordsCreated": row.records_created,
-            "errorMessage": row.error_message,
-            "startedAt": row.started_at.isoformat() if row.started_at else None,
-            "completedAt": row.completed_at.isoformat() if row.completed_at else None,
-        }
-        for row in rows
-    ]
+    return {
+        "success": True,
+        "count": len(rows),
+        "items": [
+            {
+                "id": row.id,
+                "ticker": row.ticker,
+                "sourceType": row.source_type,
+                "status": row.status,
+                "filingsFound": row.filings_found,
+                "filingsProcessed": row.filings_processed,
+                "filingsSkipped": row.filings_skipped,
+                "filingsFailed": row.filings_failed,
+                "recordsCreated": row.records_created,
+                "errorMessage": row.error_message,
+                "startedAt": row.started_at.isoformat() if row.started_at else None,
+                "completedAt": row.completed_at.isoformat() if row.completed_at else None,
+            }
+            for row in rows
+        ],
+    }
 
 @router.get("/sec-13f/{cik}/filings")
 def preview_sec_13f_filings(
@@ -349,6 +406,7 @@ def parse_latest_sec_13f_filing(
 def ingest_latest_sec_13f_filing(
     cik: str,
     db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_admin_user),
 ):
     try:
         filings = get_recent_13f_filings(cik, limit=1)
@@ -378,7 +436,9 @@ def ingest_recent_sec_13f_filings(
     cik: str,
     limit: int = Query(3, ge=1, le=10),
     db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_admin_user),
 ):
+    started_at = datetime.utcnow()
     results = []
     processed_count = 0
     skipped_count = 0
@@ -421,9 +481,14 @@ def ingest_recent_sec_13f_filings(
                 )
 
         db.commit()
+        completed_at = datetime.utcnow()
 
         return {
+            "success": error_count == 0,
             "cik": cik,
+            "startedAt": started_at.isoformat(),
+            "completedAt": completed_at.isoformat(),
+            "durationSeconds": round((completed_at - started_at).total_seconds(), 2),
             "filingsFound": len(filings),
             "processedCount": processed_count,
             "skippedCount": skipped_count,

@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.security import get_current_user
 from app.db.database import get_db
-from app.models import Alert, Company, MoneySignalScore, Signal
+from app.models import Alert, Company, MoneySignalScore, Signal, User
 
 router = APIRouter(prefix="/alerts", tags=["Alerts"])
 
@@ -57,7 +58,11 @@ def get_unread_alert_count(db: Session = Depends(get_db)):
 
 
 @router.patch("/{alert_id}/read")
-def mark_alert_as_read(alert_id: int, db: Session = Depends(get_db)):
+def mark_alert_as_read(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
     alert = (
         db.query(Alert)
         .filter(
@@ -87,7 +92,11 @@ def mark_alert_as_read(alert_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{alert_id}")
-def delete_alert(alert_id: int, db: Session = Depends(get_db)):
+def delete_alert(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
     alert = (
         db.query(Alert)
         .filter(

@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+from threading import Lock
+from uuid import uuid4
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.orm import Session
@@ -7,10 +9,26 @@ from app.core.config import settings
 from app.db.database import SessionLocal
 from app.models import Company, ScrapeHistory
 from app.services.form4_ingestion_service import ingest_form4_filing
+from app.services.ingestion_service import run_full_ingestion_pipeline
 from app.services.sec_client import get_recent_form4_filings
 
 
 scheduler = BackgroundScheduler()
+_ingestion_run_lock = Lock()
+_latest_ingestion_run: dict = {
+    "running": False,
+    "latestRunId": None,
+    "latestStatus": None,
+    "startedAt": None,
+    "completedAt": None,
+    "durationSeconds": None,
+    "latestResult": None,
+    "error": None,
+}
+
+
+def _iso(value: datetime | None) -> str | None:
+    return value.isoformat() if value else None
 
 
 def _recent_success_exists(db: Session, ticker: str) -> bool:
@@ -196,7 +214,19 @@ def scrape_all_tracked_companies(limit: int | None = None) -> dict:
 
 
 def scheduled_scrape_job():
-    scrape_all_tracked_companies(limit=settings.SCRAPER_MAX_FILINGS)
+    db = SessionLocal()
+
+    try:
+        run_full_ingestion_pipeline(
+            db,
+            form4_limit=settings.SCRAPER_MAX_FILINGS,
+            thirteen_f_limit=settings.SCRAPER_13F_MAX_FILINGS,
+            refresh_market=settings.SCRAPER_REFRESH_MARKET,
+            market_limit=25,
+        )
+
+    finally:
+        db.close()
 
 
 def start_scheduler():
@@ -207,8 +237,10 @@ def start_scheduler():
         scheduled_scrape_job,
         "interval",
         hours=settings.SCRAPER_SCHEDULE_HOURS,
-        id="sec_form4_scraper",
+        id="full_ingestion_pipeline",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
 
     scheduler.start()
@@ -233,10 +265,190 @@ def get_scheduler_status() -> dict:
             for job in scheduler.get_jobs()
         ]
 
+    with _ingestion_run_lock:
+        run_state = dict(_latest_ingestion_run)
+
     return {
-        "running": scheduler.running,
+        "running": run_state["running"],
+        "schedulerRunning": scheduler.running,
         "jobs": jobs,
         "scheduleHours": settings.SCRAPER_SCHEDULE_HOURS,
         "maxFilings": settings.SCRAPER_MAX_FILINGS,
+        "thirteenFMaxFilings": settings.SCRAPER_13F_MAX_FILINGS,
+        "refreshMarket": settings.SCRAPER_REFRESH_MARKET,
         "cooldownHours": settings.SCRAPER_COOLDOWN_HOURS,
+        "latestRunId": run_state["latestRunId"],
+        "latestStatus": run_state["latestStatus"],
+        "startedAt": run_state["startedAt"],
+        "completedAt": run_state["completedAt"],
+        "durationSeconds": run_state["durationSeconds"],
+        "latestResult": run_state["latestResult"],
+        "error": run_state["error"],
     }
+
+
+def start_ingestion_run(
+    form4_limit: int = 5,
+    thirteen_f_limit: int = 3,
+    refresh_market: bool = True,
+    market_limit: int = 25,
+) -> dict:
+    started_at = datetime.utcnow()
+
+    with _ingestion_run_lock:
+        if _latest_ingestion_run["running"]:
+            return {
+                "success": True,
+                "status": "running",
+                "runId": _latest_ingestion_run["latestRunId"],
+                "message": "Pipeline is already running.",
+                "startedAt": _latest_ingestion_run["startedAt"],
+                "completedAt": None,
+                "durationSeconds": None,
+            }
+
+        run_id = str(uuid4())
+
+        # TODO: Persist run state in a dedicated pipeline_runs table when the
+        # admin pipeline needs cross-process or multi-worker visibility.
+        _latest_ingestion_run.update(
+            {
+                "running": True,
+                "latestRunId": run_id,
+                "latestStatus": "running",
+                "startedAt": _iso(started_at),
+                "completedAt": None,
+                "durationSeconds": None,
+                "latestResult": {
+                    "success": True,
+                    "status": "running",
+                    "runId": run_id,
+                    "message": "Pipeline started.",
+                    "startedAt": _iso(started_at),
+                    "completedAt": None,
+                    "durationSeconds": None,
+                    "marketLimit": market_limit,
+                },
+                "error": None,
+            }
+        )
+
+    return {
+        "success": True,
+        "status": "started",
+        "runId": run_id,
+        "message": "Pipeline started",
+        "startedAt": _iso(started_at),
+        "completedAt": None,
+        "durationSeconds": None,
+        "marketLimit": market_limit,
+    }
+
+
+def run_ingestion_background(
+    run_id: str,
+    form4_limit: int = 5,
+    thirteen_f_limit: int = 3,
+    refresh_market: bool = True,
+    market_limit: int = 25,
+) -> None:
+    db = SessionLocal()
+    started_at = datetime.utcnow()
+
+    try:
+        result = run_full_ingestion_pipeline(
+            db,
+            form4_limit=form4_limit,
+            thirteen_f_limit=thirteen_f_limit,
+            refresh_market=refresh_market,
+            market_limit=market_limit,
+        )
+
+        completed_at = datetime.utcnow()
+        duration_seconds = round((completed_at - started_at).total_seconds(), 2)
+        result = {
+            **result,
+            "runId": run_id,
+            "marketLimit": market_limit,
+            "durationSeconds": result.get("durationSeconds") or duration_seconds,
+        }
+
+        with _ingestion_run_lock:
+            if _latest_ingestion_run["latestRunId"] == run_id:
+                _latest_ingestion_run.update(
+                    {
+                        "running": False,
+                        "latestStatus": result.get("status") or "success",
+                        "completedAt": result.get("completedAt")
+                        or _iso(completed_at),
+                        "durationSeconds": result.get("durationSeconds"),
+                        "latestResult": result,
+                        "error": result.get("error"),
+                    }
+                )
+
+    except Exception as error:
+        completed_at = datetime.utcnow()
+        result = {
+            "success": False,
+            "status": "failed",
+            "runId": run_id,
+            "message": "Pipeline failed.",
+            "startedAt": _iso(started_at),
+            "completedAt": _iso(completed_at),
+            "durationSeconds": round((completed_at - started_at).total_seconds(), 2),
+            "marketLimit": market_limit,
+            "stages": [],
+            "totals": {
+                "processed": 0,
+                "skipped": 0,
+                "failed": 1,
+                "recordsCreated": 0,
+                "warnings": 0,
+                "errors": 1,
+            },
+            "warnings": [],
+            "errors": [{"stage": "pipeline", "message": str(error)}],
+            "error": str(error),
+        }
+
+        with _ingestion_run_lock:
+            if _latest_ingestion_run["latestRunId"] == run_id:
+                _latest_ingestion_run.update(
+                    {
+                        "running": False,
+                        "latestStatus": "failed",
+                        "completedAt": _iso(completed_at),
+                        "durationSeconds": result["durationSeconds"],
+                        "latestResult": result,
+                        "error": str(error),
+                    }
+                )
+
+    finally:
+        db.close()
+
+
+def run_ingestion_once(
+    form4_limit: int = 5,
+    thirteen_f_limit: int = 3,
+    refresh_market: bool = True,
+    market_limit: int = 25,
+) -> dict:
+    run = start_ingestion_run(
+        form4_limit=form4_limit,
+        thirteen_f_limit=thirteen_f_limit,
+        refresh_market=refresh_market,
+        market_limit=market_limit,
+    )
+
+    if run["status"] == "started":
+        run_ingestion_background(
+            run["runId"],
+            form4_limit=form4_limit,
+            thirteen_f_limit=thirteen_f_limit,
+            refresh_market=refresh_market,
+            market_limit=market_limit,
+        )
+
+    return get_scheduler_status()
