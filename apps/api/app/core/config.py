@@ -164,4 +164,9 @@ class Settings:
             6,
         )
 
+        self.INGESTION_MAX_RUNTIME_SECONDS = _int_env(
+            "INGESTION_MAX_RUNTIME_SECONDS",
+            1200,
+        )
+
 settings = Settings()

@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_admin_user
@@ -25,6 +26,54 @@ router = APIRouter(
     tags=["Scraper"],
     dependencies=[Depends(get_current_admin_user)],
 )
+
+
+def _serialize_scrape_history(row: ScrapeHistory, include_details: bool = False) -> dict:
+    details = row.details_json if isinstance(row.details_json, dict) else None
+    item = {
+        "id": row.id,
+        "runId": row.run_id,
+        "ticker": row.ticker,
+        "sourceType": row.source_type,
+        "status": row.status,
+        "triggerSource": row.trigger_source,
+        "triggeredBy": row.triggered_by,
+        "filingsFound": row.filings_found,
+        "filingsProcessed": row.filings_processed,
+        "filingsSkipped": row.filings_skipped,
+        "filingsFailed": row.filings_failed,
+        "recordsCreated": row.records_created,
+        "durationSeconds": row.duration_seconds,
+        "errorMessage": row.error_message,
+        "startedAt": row.started_at.isoformat() if row.started_at else None,
+        "completedAt": row.completed_at.isoformat() if row.completed_at else None,
+    }
+
+    if details:
+        item["limits"] = details.get("limits")
+        item["totals"] = details.get("totals")
+        item["warningsCount"] = details.get("warningsCount")
+        item["errorsCount"] = details.get("errorsCount")
+        item["details"] = details if include_details else {
+            "runId": details.get("runId"),
+            "status": details.get("status"),
+            "triggerSource": details.get("triggerSource"),
+            "triggeredBy": details.get("triggeredBy"),
+            "startedAt": details.get("startedAt"),
+            "finishedAt": details.get("finishedAt"),
+            "durationSeconds": details.get("durationSeconds"),
+            "limits": details.get("limits"),
+            "stages": details.get("stages", []),
+            "totals": details.get("totals"),
+            "warningsCount": details.get("warningsCount"),
+            "errorsCount": details.get("errorsCount"),
+            "latestError": details.get("latestError"),
+        }
+
+    if include_details:
+        item["details"] = details
+
+    return item
 
 
 @router.post("/sec-company-universe/import")
@@ -297,11 +346,30 @@ def ingest_recent_sec_form4_filings(
 @router.get("/history")
 def get_scrape_history(
     limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    status: str | None = Query(None),
+    source: str | None = Query(None),
+    started_after: datetime | None = Query(None),
+    started_before: datetime | None = Query(None),
     db: Session = Depends(get_db),
 ):
+    query = db.query(ScrapeHistory)
+
+    if status:
+        query = query.filter(ScrapeHistory.status == status)
+
+    if source:
+        query = query.filter(ScrapeHistory.source_type == source)
+
+    if started_after:
+        query = query.filter(ScrapeHistory.started_at >= started_after)
+
+    if started_before:
+        query = query.filter(ScrapeHistory.started_at <= started_before)
+
     rows = (
-        db.query(ScrapeHistory)
-        .order_by(ScrapeHistory.started_at.desc())
+        query.order_by(ScrapeHistory.started_at.desc(), ScrapeHistory.id.desc())
+        .offset(offset)
         .limit(limit)
         .all()
     )
@@ -309,23 +377,35 @@ def get_scrape_history(
     return {
         "success": True,
         "count": len(rows),
-        "items": [
-            {
-                "id": row.id,
-                "ticker": row.ticker,
-                "sourceType": row.source_type,
-                "status": row.status,
-                "filingsFound": row.filings_found,
-                "filingsProcessed": row.filings_processed,
-                "filingsSkipped": row.filings_skipped,
-                "filingsFailed": row.filings_failed,
-                "recordsCreated": row.records_created,
-                "errorMessage": row.error_message,
-                "startedAt": row.started_at.isoformat() if row.started_at else None,
-                "completedAt": row.completed_at.isoformat() if row.completed_at else None,
-            }
-            for row in rows
-        ],
+        "limit": limit,
+        "offset": offset,
+        "items": [_serialize_scrape_history(row) for row in rows],
+    }
+
+
+@router.get("/history/{run_id}")
+def get_scrape_history_detail(
+    run_id: str,
+    db: Session = Depends(get_db),
+):
+    filters = [ScrapeHistory.run_id == run_id]
+
+    if run_id.isdigit():
+        filters.append(ScrapeHistory.id == int(run_id))
+
+    row = (
+        db.query(ScrapeHistory)
+        .filter(or_(*filters))
+        .order_by(ScrapeHistory.id.desc())
+        .first()
+    )
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Scrape history run not found")
+
+    return {
+        "success": True,
+        "item": _serialize_scrape_history(row, include_details=True),
     }
 
 @router.get("/sec-13f/{cik}/filings")

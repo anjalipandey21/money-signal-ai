@@ -623,6 +623,15 @@ export async function getScrapeHistory(limit = 25) {
   return response.items;
 }
 
+export async function getScrapeHistoryRun(runId: string) {
+  return apiClient<ScrapeHistoryDetailResponse>(
+    `/scraper/history/${encodeURIComponent(runId)}`,
+    {
+      authToken: getAuthToken(),
+    }
+  );
+}
+
 export async function importSecCompanyUniverse({
   limit = 100,
   enrichProfile = false,
@@ -795,21 +804,59 @@ export type MarketOverviewResponse = {
 
 export type ScrapeHistoryItem = {
   id: number;
+  runId?: string | null;
   ticker: string;
   sourceType: string;
   status: string;
+  triggerSource?: string | null;
+  triggeredBy?: string | null;
   filingsFound: number;
   filingsProcessed: number;
   filingsSkipped: number;
   filingsFailed: number;
   recordsCreated: number;
+  durationSeconds?: number | null;
   errorMessage: string | null;
   startedAt: string | null;
   completedAt: string | null;
+  limits?: {
+    form4Limit?: number | null;
+    thirteenFLimit?: number | null;
+    marketLimit?: number | null;
+    refreshMarket?: boolean | null;
+  } | null;
+  totals?: IngestionPipelineTotals | null;
+  warningsCount?: number | null;
+  errorsCount?: number | null;
+  details?: ScrapeHistoryDetails | null;
+};
+
+export type ScrapeHistoryDetails = {
+  runId?: string | null;
+  status?: string;
+  triggerSource?: string | null;
+  triggeredBy?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  durationSeconds?: number | null;
+  limits?: ScrapeHistoryItem["limits"];
+  companiesFound?: number | null;
+  companyUniverse?: CompanyUniverseStats | null;
+  fundsFound?: number | null;
+  form4LimitApplied?: boolean | null;
+  marketLimitApplied?: boolean | null;
+  stages?: IngestionStageResult[];
+  totals?: IngestionPipelineTotals | null;
+  warnings?: IngestionPipelineIssue[];
+  errors?: IngestionPipelineIssue[];
+  warningsCount?: number | null;
+  errorsCount?: number | null;
+  latestError?: string | null;
 };
 
 export type SchedulerStatusResponse = {
   running: boolean;
+  currentRunId?: string | null;
   schedulerRunning?: boolean;
   jobs: {
     id: string;
@@ -823,10 +870,14 @@ export type SchedulerStatusResponse = {
   latestRunId?: string | null;
   latestStatus?: string | null;
   startedAt?: string | null;
+  finishedAt?: string | null;
   completedAt?: string | null;
   durationSeconds?: number | null;
   latestResult?: FullIngestionPipelineResponse | IngestionRunStartResponse | null;
+  latestError?: string | null;
   error?: string | null;
+  lastHeartbeatAt?: string | null;
+  ingestionMaxRuntimeSeconds?: number;
 };
 
 export type StockUniverseImportResponse = {
@@ -851,7 +902,14 @@ export type SecCompanyUniverseImportResponse = StockUniverseImportResponse & {
 export type ScrapeHistoryResponse = {
   success: boolean;
   count: number;
+  limit?: number;
+  offset?: number;
   items: ScrapeHistoryItem[];
+};
+
+export type ScrapeHistoryDetailResponse = {
+  success: boolean;
+  item: ScrapeHistoryItem;
 };
 
 export type IngestionStageResult = {
@@ -909,17 +967,30 @@ export type IngestionRunStartResponse = {
   startedAt: string | null;
   completedAt: string | null;
   durationSeconds: number | null;
+  triggerSource?: string | null;
+  triggeredBy?: string | null;
+  form4Limit?: number;
+  thirteenFLimit?: number;
   marketLimit?: number;
+  refreshMarket?: boolean;
+  historyId?: number;
 };
 
 export type FullIngestionPipelineResponse = {
   success: boolean;
   status: string;
+  runId?: string | null;
   message?: string;
   startedAt: string;
   completedAt: string | null;
   durationSeconds: number | null;
+  triggerSource?: string | null;
+  triggeredBy?: string | null;
+  form4Limit?: number;
+  thirteenFLimit?: number;
   marketLimit?: number;
+  refreshMarket?: boolean;
+  historyId?: number;
   companiesFound?: number;
   totalCompanies?: number;
   eligibleForm4Companies?: number;
