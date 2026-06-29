@@ -4,11 +4,12 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from sqlalchemy import or_
 from app.services.stock_universe_service import (
+    find_sec_company_by_ticker,
     import_stock_universe,
     StockUniverseError,
 )
-from app.services.market_data_service import refresh_market_snapshot
 
+from app.core.security import get_current_admin_user
 from app.db.database import get_db
 from app.models import (
     AIInsight,
@@ -20,6 +21,7 @@ from app.models import (
     InsiderTrade,
     MoneySignalScore,
     Signal,
+    User,
 )
 from app.services.market_data_service import (
     format_market_snapshot,
@@ -29,6 +31,7 @@ from app.services.market_data_service import (
     get_price_history,
     refresh_market_snapshot,
 )
+from app.services.ingestion_service import get_company_universe_stats
 
 router = APIRouter(prefix="/stocks", tags=["Stocks"])
 
@@ -121,6 +124,13 @@ def _get_stock_profile_from_yfinance(symbol: str) -> dict:
         "sector": sector,
         "industry": industry,
     }
+
+
+def _get_sec_profile_for_ticker(symbol: str) -> dict | None:
+    try:
+        return find_sec_company_by_ticker(symbol)
+    except Exception:
+        return None
 
 @router.get("")
 @router.get("/")
@@ -480,6 +490,7 @@ def get_market_overview(
 def track_stock(
     ticker: str,
     db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_admin_user),
 ):
     symbol = ticker.strip().upper()
 
@@ -490,6 +501,21 @@ def track_stock(
     )
 
     if existing_company:
+        sec_warning = None
+
+        if not existing_company.cik:
+            sec_profile = _get_sec_profile_for_ticker(symbol)
+
+            if sec_profile and sec_profile.get("cik"):
+                existing_company.cik = sec_profile["cik"]
+                existing_company.exchange = existing_company.exchange or sec_profile.get("exchange")
+                db.commit()
+                db.refresh(existing_company)
+            else:
+                sec_warning = (
+                    "SEC CIK was not found; stock remains tracked without SEC filing ingestion."
+                )
+
         snapshot = get_or_refresh_market_snapshot(
             db,
             existing_company,
@@ -506,13 +532,19 @@ def track_stock(
             "changePercent": market["changePercent"],
             "marketProvider": market["marketProvider"],
             "priceFetchedAt": market["priceFetchedAt"],
+            "cik": existing_company.cik,
+            "cikStatus": "attached" if existing_company.cik else "missing",
+            "warning": sec_warning,
         }
 
     profile = _get_stock_profile_from_yfinance(symbol)
+    sec_profile = _get_sec_profile_for_ticker(symbol)
 
     company = Company(
         ticker=profile["ticker"],
-        name=profile["name"],
+        name=sec_profile["name"] if sec_profile else profile["name"],
+        cik=sec_profile.get("cik") if sec_profile else None,
+        exchange=sec_profile.get("exchange") if sec_profile else None,
         sector=profile["sector"],
         industry=profile["industry"],
     )
@@ -538,74 +570,11 @@ def track_stock(
         "changePercent": market["changePercent"],
         "marketProvider": market["marketProvider"],
         "priceFetchedAt": market["priceFetchedAt"],
-    }
-
-@router.post("/universe/import")
-def import_universe(
-    limit: int = Query(500, ge=1, le=5000),
-    include_funds: bool = Query(False),
-    db: Session = Depends(get_db),
-):
-    try:
-        return import_stock_universe(
-            db,
-            limit=limit,
-            include_funds=include_funds,
-        )
-
-    except StockUniverseError as error:
-        db.rollback()
-        raise HTTPException(status_code=502, detail=str(error)) from error
-
-    except Exception as error:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(error)) from error
-
-
-@router.post("/quotes/refresh-tracked")
-def refresh_tracked_quotes(
-    limit: int = Query(100, ge=1, le=500),
-    offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
-):
-    companies = (
-        db.query(Company)
-        .order_by(Company.ticker.asc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
-
-    results = []
-
-    for company in companies:
-        try:
-            snapshot = refresh_market_snapshot(db, company.ticker)
-            market = format_market_snapshot(snapshot)
-
-            results.append(
-                {
-                    "ticker": company.ticker,
-                    "status": "success",
-                    "price": market["price"],
-                    "changePercent": market["changePercent"],
-                    "provider": market["marketProvider"],
-                    "priceFetchedAt": market["priceFetchedAt"],
-                }
-            )
-
-        except Exception as error:
-            results.append(
-                {
-                    "ticker": company.ticker,
-                    "status": "failed",
-                    "error": str(error),
-                }
-            )
-
-    return {
-        "count": len(results),
-        "results": results,
+        "cik": company.cik,
+        "cikStatus": "attached" if company.cik else "missing",
+        "warning": None
+        if company.cik
+        else "SEC CIK was not found; stock is tracked without SEC filing ingestion.",
     }
 
 @router.post("/universe/import")
@@ -613,7 +582,9 @@ def import_universe(
     limit: int = Query(500, ge=1, le=5000),
     include_funds: bool = Query(False),
     include_otc: bool = Query(False),
+    enrich_profile: bool = Query(False),
     db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_admin_user),
 ):
     try:
         return import_stock_universe(
@@ -621,6 +592,7 @@ def import_universe(
             limit=limit,
             include_funds=include_funds,
             include_otc=include_otc,
+            enrich_profile=enrich_profile,
         )
 
     except StockUniverseError as error:
@@ -632,11 +604,19 @@ def import_universe(
         raise HTTPException(status_code=500, detail=str(error)) from error
 
 
+@router.get("/universe/stats")
+def get_universe_stats(db: Session = Depends(get_db)):
+    companies = db.query(Company).order_by(Company.ticker.asc()).all()
+
+    return get_company_universe_stats(companies)
+
+
 @router.post("/quotes/refresh-tracked")
 def refresh_tracked_quotes(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_admin_user),
 ):
     companies = (
         db.query(Company)

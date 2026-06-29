@@ -56,7 +56,7 @@ def parse_json_response(text: str) -> dict[str, str]:
 
 def generate_with_openai(prompt: str) -> dict[str, str]:
     api_key = os.getenv("OPENAI_API_KEY")
-    model = os.getenv("OPENAI_MODEL", "gpt-5.5")
+    model = os.getenv("OPENAI_MODEL", "gpt-5")
 
     if not api_key:
         raise LLMProviderError("OPENAI_API_KEY is missing")
@@ -79,7 +79,7 @@ def generate_with_openai(prompt: str) -> dict[str, str]:
 
 def generate_with_gemini(prompt: str) -> dict[str, str]:
     api_key = os.getenv("GEMINI_API_KEY")
-    model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
     if not api_key:
         raise LLMProviderError("GEMINI_API_KEY is missing")

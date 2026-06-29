@@ -44,9 +44,9 @@ export function RecentInsiderTrades() {
         </thead>
 
         <tbody className="divide-y divide-[#424754]/20 font-mono text-[14px] text-[#e0e2ed]">
-          {data.map((trade) => (
+          {data.map((trade, index) => (
             <tr
-              key={`${trade.insider}-${trade.ticker}-${trade.date}`}
+              key={`${trade.insider}-${trade.ticker}-${trade.date}-${trade.value}-${index}`}
               className="hover:bg-[#262a32]/50"
             >
               <td className="px-4 py-3 text-[12px] font-medium">

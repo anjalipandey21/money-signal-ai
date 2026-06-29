@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.core.security import get_current_admin_user
 from app.db.database import get_db
-from app.models import Company
+from app.models import Company, User
 from app.services.market_data_service import (
     MarketDataError,
     format_market_snapshot,
@@ -47,7 +48,11 @@ def get_market_snapshot(
 
 
 @router.post("/refresh/{ticker}")
-def refresh_market_data(ticker: str, db: Session = Depends(get_db)):
+def refresh_market_data(
+    ticker: str,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_admin_user),
+):
     try:
         snapshot = refresh_market_snapshot(db, ticker)
 

@@ -67,9 +67,9 @@ export function TopMoneySignalScores() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {data.map((card) => (
+        {data.map((card, index) => (
           <ScoreCard
-            key={card.ticker}
+            key={`${card.ticker}-${index}`}
             card={card}
             quote={liveQuotes[card.ticker]}
           />

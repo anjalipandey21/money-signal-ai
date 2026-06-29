@@ -26,7 +26,8 @@ def _float(value: str | None) -> float | None:
         return None
 
     try:
-        return float(value.replace(",", ""))
+        cleaned = value.replace(",", "").replace("$", "").strip()
+        return float(cleaned)
     except ValueError:
         return None
 
@@ -45,6 +46,10 @@ def _transaction_type(code: str | None) -> str:
     if code == "G":
         return "GIFT"
     return "OTHER"
+
+
+def _warning_list(*items: str | None) -> list[str]:
+    return [item for item in items if item]
 
 
 def _parse_owner(owner_node: ET.Element | None) -> dict[str, Any]:
@@ -77,15 +82,25 @@ def _parse_transaction(transaction_node: ET.Element, derivative: bool = False) -
     price_per_share = _float(
         _text(transaction_node, "transactionAmounts/transactionPricePerShare/value")
     )
+    transaction_date = _text(transaction_node, "transactionDate/value")
+    security_title = _text(transaction_node, "securityTitle/value")
 
     total_value = None
     if shares is not None and price_per_share is not None:
         total_value = round(shares * price_per_share, 2)
 
+    warnings = _warning_list(
+        "missing_transaction_date" if not transaction_date else None,
+        "missing_transaction_code" if not transaction_code else None,
+        "missing_shares" if shares is None else None,
+        "missing_price" if price_per_share is None else None,
+    )
+
     return {
-        "transactionDate": _text(transaction_node, "transactionDate/value"),
+        "transactionDate": transaction_date,
         "transactionCode": transaction_code,
         "transactionType": _transaction_type(transaction_code),
+        "securityTitle": security_title,
         "shares": shares,
         "pricePerShare": price_per_share,
         "totalValue": total_value,
@@ -100,6 +115,7 @@ def _parse_transaction(transaction_node: ET.Element, derivative: bool = False) -
             "ownershipNature/directOrIndirectOwnership/value",
         ),
         "derivativeTransaction": derivative,
+        "validationWarnings": warnings,
     }
 
 
@@ -114,8 +130,19 @@ def parse_form4_xml(xml_text: str, filing_url: str | None = None) -> dict[str, A
             f"Invalid Form 4 XML document: {error}. Preview: {preview}"
         ) from error
 
+    if root.tag.lower() != "ownershipdocument":
+        raise Form4ParserError("Could not find ownershipDocument in SEC response")
+
     issuer = root.find("issuer")
     owner_node = root.find("reportingOwner")
+    validation_warnings = _warning_list(
+        "missing_issuer" if issuer is None else None,
+        "missing_issuer_cik" if issuer is not None and not _text(issuer, "issuerCik") else None,
+        "missing_issuer_ticker"
+        if issuer is not None and not _text(issuer, "issuerTradingSymbol")
+        else None,
+        "missing_reporting_owner" if owner_node is None else None,
+    )
 
     transactions: list[dict[str, Any]] = []
 
@@ -124,6 +151,12 @@ def parse_form4_xml(xml_text: str, filing_url: str | None = None) -> dict[str, A
 
     for transaction_node in root.findall("derivativeTable/derivativeTransaction"):
         transactions.append(_parse_transaction(transaction_node, derivative=True))
+
+    if not transactions:
+        validation_warnings.append("missing_transaction_table")
+
+    for transaction in transactions:
+        validation_warnings.extend(transaction.get("validationWarnings", []))
 
     return {
         "issuer": {
@@ -137,7 +170,10 @@ def parse_form4_xml(xml_text: str, filing_url: str | None = None) -> dict[str, A
         "filingUrl": filing_url,
         "transactionCount": len(transactions),
         "transactions": transactions,
+        "validationWarnings": validation_warnings,
+        "validationWarningCount": len(validation_warnings),
     }
+
 
 def _extract_ownership_document(raw_text: str) -> str:
     text = raw_text.lstrip("\ufeff").strip()
@@ -164,7 +200,4 @@ def _extract_ownership_document(raw_text: str) -> str:
     if text.startswith("<?xml") or text.startswith("<ownershipDocument"):
         return text
 
-    preview = text[:500].replace("\n", " ").replace("\r", " ")
-    raise Form4ParserError(
-        f"Could not find ownershipDocument in SEC response. Preview: {preview}"
-    )
+    raise Form4ParserError("Could not find ownershipDocument in SEC response")

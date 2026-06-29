@@ -119,9 +119,9 @@ export function SignalsFeedList({
 
           {visibleSignals.length > 0 ? (
             <tbody className="divide-y divide-[#424754]/25">
-              {visibleSignals.map((signal) => (
+              {visibleSignals.map((signal, index) => (
                 <tr
-                  key={signal.id}
+                  key={`${signal.id}-${signal.ticker}-${index}`}
                   className={`group border-l-2 bg-[#0a0e16] transition-colors hover:bg-[#121722] ${rowBorderStyle(
                     signal.direction
                   )}`}

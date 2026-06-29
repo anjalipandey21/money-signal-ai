@@ -1,28 +1,21 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import { useClerk, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
-import {
-  clearAuthSession,
-  getAuthSession,
-  type AuthSession,
-} from "@/lib/authSession";
 
 export function AppTopbar() {
   const router = useRouter();
+  const { signOut } = useClerk();
+  const { user } = useUser();
 
-  const [session, setSession] = useState<AuthSession | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
-    setSession(getAuthSession());
-  }, []);
-
-  function handleLogout() {
-    clearAuthSession();
+  async function handleLogout() {
     setIsProfileOpen(false);
+    await signOut();
     router.replace("/login");
   }
 
@@ -41,9 +34,13 @@ export function AppTopbar() {
     setSearchQuery("");
   }
 
-  const userName = session?.user.name || "BD Analyst";
-  const userEmail = session?.user.email || "analyst@moneysignal.ai";
-  const userRole = session?.user.role || "Institutional";
+  const userName =
+    user?.fullName || user?.username || user?.primaryEmailAddress?.emailAddress || "Analyst";
+  const userEmail = user?.primaryEmailAddress?.emailAddress || "Signed in";
+  const userRole =
+    typeof user?.publicMetadata?.role === "string"
+      ? user.publicMetadata.role
+      : "Institutional";
 
   return (
     <header className="fixed left-0 right-0 top-0 z-40 h-16 border-b border-[#424754]/40 bg-[#10131b]/95 backdrop-blur md:left-[240px]">

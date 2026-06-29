@@ -136,9 +136,9 @@ def generate_ai_insight_for_company(db: Session, company: Company) -> AIInsight:
         provider = os.getenv("LLM_PROVIDER", "template").lower()
 
         if provider == "openai":
-            model_name = os.getenv("OPENAI_MODEL", "gpt-5.5")
+            model_name = os.getenv("OPENAI_MODEL", "gpt-5")
         elif provider == "gemini":
-            model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+            model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         else:
             model_name = "money-signal-template-ai-v1"
 
