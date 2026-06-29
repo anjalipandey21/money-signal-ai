@@ -27,6 +27,14 @@ cd apps/api
 curl http://127.0.0.1:8001/api/v1/health/db
 ```
 
+## Scheduler Reliability
+
+Full ingestion runs use process-local single-run protection. If a run is
+already active, `POST /api/v1/scheduler/run-ingestion` returns the existing
+run id instead of starting a duplicate task. `INGESTION_MAX_RUNTIME_SECONDS`
+defaults to `1200`; after that window the status endpoint marks the run stale
+for the admin UI, while the background task is allowed to finish naturally.
+
 ## SEC Client Settings
 
 SEC archive and submissions requests are centralized, rate-limited, retried for

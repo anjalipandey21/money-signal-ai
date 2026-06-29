@@ -57,17 +57,20 @@ def run_all_company_scrapes(
 @router.post("/run-ingestion")
 def run_full_ingestion(
     background_tasks: BackgroundTasks,
-    form4_limit: int = Query(5, ge=1, le=25),
-    thirteen_f_limit: int = Query(3, ge=1, le=10),
+    form4_limit: int = Query(5, ge=0, le=25),
+    thirteen_f_limit: int = Query(3, ge=0, le=10),
     refresh_market: bool = Query(True),
-    market_limit: int = Query(25, ge=1, le=100),
-    _current_user: User = Depends(get_current_admin_user),
+    market_limit: int = Query(25, ge=0, le=100),
+    current_user: User = Depends(get_current_admin_user),
 ):
+    triggered_by = current_user.email or current_user.username or str(current_user.id)
     response = start_ingestion_run(
         form4_limit=form4_limit,
         thirteen_f_limit=thirteen_f_limit,
         refresh_market=refresh_market,
         market_limit=market_limit,
+        trigger_source="admin",
+        triggered_by=triggered_by,
     )
 
     if response["status"] == "started":
@@ -78,6 +81,8 @@ def run_full_ingestion(
             thirteen_f_limit=thirteen_f_limit,
             refresh_market=refresh_market,
             market_limit=market_limit,
+            trigger_source="admin",
+            triggered_by=triggered_by,
         )
 
     return response

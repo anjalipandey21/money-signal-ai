@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
@@ -9,6 +10,10 @@ from app.services.form4_ingestion_service import ingest_form4_filing
 from app.services.form4_parser import Form4ParserError
 from app.services.market_data_service import refresh_market_snapshot
 from app.services.scoring_service import recalculate_all_scores
+from app.services.scrape_history_service import (
+    create_pipeline_history,
+    update_pipeline_history_from_result,
+)
 from app.services.sec_client import (
     SECClientError,
     get_recent_13f_filings,
@@ -27,15 +32,6 @@ MARKET_BLOCKED_EXCHANGE_TOKENS = {
 }
 MARKET_MAX_CONSECUTIVE_FAILURES = 10
 MARKET_SAMPLE_LIMIT = 20
-
-
-def _new_pipeline_history() -> ScrapeHistory:
-    return ScrapeHistory(
-        ticker="ALL",
-        source_type="FULL_PIPELINE",
-        status="started",
-        started_at=datetime.utcnow(),
-    )
 
 
 def _iso(value: datetime | None) -> str | None:
@@ -110,6 +106,7 @@ def _add_stage_error(
 def _finish_stage(stage: dict[str, Any]) -> None:
     completed_at = datetime.utcnow()
     started_at = datetime.fromisoformat(stage["startedAt"])
+    forced_status = stage.pop("_forcedStatus", None)
 
     stage["completedAt"] = _iso(completed_at)
     stage["durationSeconds"] = round(
@@ -117,7 +114,9 @@ def _finish_stage(stage: dict[str, Any]) -> None:
         2,
     )
 
-    if stage["failed"] > 0:
+    if forced_status:
+        stage["status"] = forced_status
+    elif stage["failed"] > 0:
         has_partial_success = (
             stage["processed"] > 0
             or stage["created"] > 0
@@ -394,15 +393,39 @@ def run_full_ingestion_pipeline(
     thirteen_f_limit: int = 3,
     refresh_market: bool = True,
     market_limit: int = 25,
+    run_id: str | None = None,
+    trigger_source: str = "unknown",
+    triggered_by: str | None = None,
 ) -> dict[str, Any]:
     started_at = datetime.utcnow()
-    history = _new_pipeline_history()
+    run_id = run_id or str(uuid4())
+    history = (
+        db.query(ScrapeHistory)
+        .filter(ScrapeHistory.run_id == run_id)
+        .order_by(ScrapeHistory.id.desc())
+        .first()
+    )
+
+    if history is None:
+        history = create_pipeline_history(
+            db,
+            run_id=run_id,
+            trigger_source=trigger_source,
+            triggered_by=triggered_by,
+            form4_limit=form4_limit,
+            thirteen_f_limit=thirteen_f_limit,
+            market_limit=market_limit,
+            refresh_market=refresh_market,
+            started_at=started_at,
+        )
+    else:
+        history.status = "running"
+        history.started_at = history.started_at or started_at
+        db.commit()
+        db.refresh(history)
+
     warnings: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
-
-    db.add(history)
-    db.commit()
-    db.refresh(history)
 
     market_stage = _empty_stage("market refresh")
     form4_stage = _empty_stage("Form 4 ingestion")
@@ -427,8 +450,18 @@ def run_full_ingestion_pipeline(
     try:
         companies = db.query(Company).order_by(Company.ticker.asc()).all()
         universe_stats = get_company_universe_stats(companies)
+        no_source_refresh_requested = (
+            form4_limit <= 0
+            and thirteen_f_limit <= 0
+            and (not refresh_market or market_limit <= 0)
+        )
 
-        if refresh_market:
+        if refresh_market and market_limit <= 0:
+            market_stage["skipped"] = len(companies)
+            market_stage["_forcedStatus"] = "skipped"
+            market_stage["message"] = "Market refresh skipped because market_limit=0."
+
+        elif refresh_market:
             consecutive_failures = 0
             market_candidates = _market_refresh_candidates(
                 companies,
@@ -475,56 +508,63 @@ def run_full_ingestion_pipeline(
 
         else:
             market_stage["skipped"] = len(companies)
+            market_stage["_forcedStatus"] = "skipped"
             market_stage["message"] = "Market refresh disabled for this run."
 
         _finish_stage(market_stage)
 
-        form4_candidates = _form4_candidates(
-            companies,
-            form4_stage,
-            warnings,
-            form4_limit,
-        )
+        if form4_limit <= 0:
+            form4_stage["skipped"] = len(companies)
+            form4_stage["_forcedStatus"] = "skipped"
+            form4_stage["message"] = "Form 4 ingestion skipped because form4_limit=0."
 
-        for company in form4_candidates:
-            form4_stage["attempted"] += 1
+        else:
+            form4_candidates = _form4_candidates(
+                companies,
+                form4_stage,
+                warnings,
+                form4_limit,
+            )
 
-            try:
-                filings = get_recent_form4_filings(company.cik, limit=1)
-                _ingest_form4_filings(
-                    db,
-                    company,
-                    filings,
-                    form4_stage,
-                    warnings,
-                    errors,
-                )
+            for company in form4_candidates:
+                form4_stage["attempted"] += 1
 
-            except Exception as error:
-                db.rollback()
-                form4_stage["failed"] += 1
-                _append_ticker_sample(
-                    form4_stage,
-                    "failedTickers",
-                    company.ticker,
-                )
-
-                if _is_form4_document_warning(error):
-                    _add_stage_warning(
+                try:
+                    filings = get_recent_form4_filings(company.cik, limit=1)
+                    _ingest_form4_filings(
+                        db,
+                        company,
+                        filings,
                         form4_stage,
                         warnings,
-                        "Form 4 document was unavailable or not parseable.",
-                        ticker=company.ticker,
-                        error=_concise_form4_document_error(error),
-                    )
-                else:
-                    _add_stage_error(
-                        form4_stage,
                         errors,
-                        "Form 4 ingestion failed for ticker.",
-                        ticker=company.ticker,
-                        error=_short_error(error),
                     )
+
+                except Exception as error:
+                    db.rollback()
+                    form4_stage["failed"] += 1
+                    _append_ticker_sample(
+                        form4_stage,
+                        "failedTickers",
+                        company.ticker,
+                    )
+
+                    if _is_form4_document_warning(error):
+                        _add_stage_warning(
+                            form4_stage,
+                            warnings,
+                            "Form 4 document was unavailable or not parseable.",
+                            ticker=company.ticker,
+                            error=_concise_form4_document_error(error),
+                        )
+                    else:
+                        _add_stage_error(
+                            form4_stage,
+                            errors,
+                            "Form 4 ingestion failed for ticker.",
+                            ticker=company.ticker,
+                            error=_short_error(error),
+                        )
 
         _finish_stage(form4_stage)
 
@@ -535,7 +575,14 @@ def run_full_ingestion_pipeline(
             .all()
         )
 
-        if not funds:
+        if thirteen_f_limit <= 0:
+            thirteen_f_stage["message"] = (
+                "13F ingestion skipped because thirteen_f_limit=0."
+            )
+            thirteen_f_stage["skipped"] = len(funds) if funds else 1
+            thirteen_f_stage["_forcedStatus"] = "skipped"
+
+        elif not funds:
             thirteen_f_stage["message"] = "No tracked fund CIK list configured yet."
             thirteen_f_stage["skipped"] = 1
         else:
@@ -569,23 +616,35 @@ def run_full_ingestion_pipeline(
                     )
 
         _finish_stage(thirteen_f_stage)
-        _finish_stage(signal_stage)
 
-        try:
-            scores = recalculate_all_scores(db)
-            scoring_stage["attempted"] = len(companies)
-            scoring_stage["processed"] = len(scores)
-
-        except Exception as error:
-            db.rollback()
-            scoring_stage["failed"] = len(companies)
-            _add_stage_error(
-                scoring_stage,
-                errors,
-                "MoneySignal score recalculation failed.",
-                error=str(error),
+        if no_source_refresh_requested:
+            signal_stage["_forcedStatus"] = "skipped"
+            signal_stage["message"] = (
+                "Signal generation skipped because no source ingestion stages ran."
+            )
+            scoring_stage["skipped"] = len(companies)
+            scoring_stage["_forcedStatus"] = "skipped"
+            scoring_stage["message"] = (
+                "Score recalculation skipped because no source data was refreshed."
             )
 
+        else:
+            try:
+                scores = recalculate_all_scores(db)
+                scoring_stage["attempted"] = len(companies)
+                scoring_stage["processed"] = len(scores)
+
+            except Exception as error:
+                db.rollback()
+                scoring_stage["failed"] = len(companies)
+                _add_stage_error(
+                    scoring_stage,
+                    errors,
+                    "MoneySignal score recalculation failed.",
+                    error=str(error),
+                )
+
+        _finish_stage(signal_stage)
         _finish_stage(scoring_stage)
 
         stages = [
@@ -608,32 +667,14 @@ def run_full_ingestion_pipeline(
         elif warnings:
             pipeline_status = "partial"
 
-        history.status = (
-            "processed"
-            if pipeline_status == "success"
-            else "processed_with_warnings"
-            if warnings and not errors
-            else "processed_with_errors"
-        )
-        history.filings_found = (
-            market_stage["attempted"]
-            + form4_stage["attempted"]
-            + thirteen_f_stage["attempted"]
-        )
-        history.filings_processed = processed_count
-        history.filings_skipped = skipped_count
-        history.filings_failed = failed_count
-        history.records_created = records_created
-        history.error_message = _summarize_stage_errors(stages)
-        history.completed_at = completed_at
-        db.commit()
         history_stage["processed"] = 1
         history_stage["message"] = f"Scrape history row {history.id} updated."
         _finish_stage(history_stage)
 
-        return {
+        result = {
             "success": not errors,
             "status": pipeline_status,
+            "runId": run_id,
             "message": "Full ingestion pipeline completed with details.",
             "startedAt": _iso(started_at),
             "completedAt": _iso(completed_at),
@@ -650,9 +691,13 @@ def run_full_ingestion_pipeline(
             "fundsFound": len(funds),
             "stages": stages,
             "totals": {
-                "attempted": history.filings_found,
-                "processed": history.filings_processed,
-                "skipped": history.filings_skipped,
+                "attempted": (
+                    market_stage["attempted"]
+                    + form4_stage["attempted"]
+                    + thirteen_f_stage["attempted"]
+                ),
+                "processed": processed_count,
+                "skipped": skipped_count,
                 "failed": failed_count,
                 "created": records_created,
                 "updated": sum(_stage_count(stage, "updated") for stage in stages),
@@ -666,26 +711,35 @@ def run_full_ingestion_pipeline(
             "errors": errors,
         }
 
+        updated_history = update_pipeline_history_from_result(
+            db,
+            run_id=run_id,
+            result=result,
+            trigger_source=trigger_source,
+            triggered_by=triggered_by,
+            form4_limit=form4_limit,
+            thirteen_f_limit=thirteen_f_limit,
+            market_limit=market_limit,
+            refresh_market=refresh_market,
+        )
+        result["historyId"] = updated_history.id
+
+        return result
+
     except Exception as error:
         db.rollback()
 
-        history.status = "failed"
-        history.error_message = str(error)
-        history.completed_at = datetime.utcnow()
-
-        db.add(history)
-        db.commit()
-
-        return {
+        failed_result = {
             "success": False,
             "status": "failed",
+            "runId": run_id,
             "startedAt": _iso(started_at),
-            "completedAt": _iso(history.completed_at),
+            "completedAt": _iso(datetime.utcnow()),
             "durationSeconds": round(
-                (history.completed_at - started_at).total_seconds(),
+                (datetime.utcnow() - started_at).total_seconds(),
                 2,
             )
-            if history.completed_at
+            if started_at
             else None,
             "totalCompanies": universe_stats["totalCompanies"],
             "eligibleForm4Companies": universe_stats["eligibleForForm4"],
@@ -717,6 +771,24 @@ def run_full_ingestion_pipeline(
             "errors": [*errors, {"stage": "pipeline", "message": str(error)}],
             "error": str(error),
         }
+
+        try:
+            updated_history = update_pipeline_history_from_result(
+                db,
+                run_id=run_id,
+                result=failed_result,
+                trigger_source=trigger_source,
+                triggered_by=triggered_by,
+                form4_limit=form4_limit,
+                thirteen_f_limit=thirteen_f_limit,
+                market_limit=market_limit,
+                refresh_market=refresh_market,
+            )
+            failed_result["historyId"] = updated_history.id
+        except Exception:
+            db.rollback()
+
+        return failed_result
 
 
 def _ingest_form4_filings(

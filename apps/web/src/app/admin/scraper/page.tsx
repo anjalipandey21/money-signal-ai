@@ -35,10 +35,14 @@ function statusClass(status?: string) {
   if (status === "partial" || status.includes("warning")) {
     return "border-amber-300/30 bg-amber-300/10 text-amber-200";
   }
-  if (status.includes("processed") || status === "success") {
+  if (
+    status.includes("processed") ||
+    status === "success" ||
+    status === "completed"
+  ) {
     return "border-emerald-400/30 bg-emerald-400/10 text-emerald-300";
   }
-  if (status === "skipped" || status === "timed_out") {
+  if (status === "skipped" || status === "timed_out" || status === "stale") {
     return "border-amber-300/30 bg-amber-300/10 text-amber-200";
   }
   if (status === "failed" || status === "error") {
@@ -73,6 +77,22 @@ function formatCount(value?: number | null) {
 
 function formatDuration(value?: number | null) {
   return value == null ? "--" : `${value}s`;
+}
+
+function formatRunId(runId?: string | null) {
+  return runId ? runId.slice(0, 8) : "--";
+}
+
+function formatLimits(row: ScrapeHistoryItem) {
+  const limits = row.limits;
+
+  if (!limits) return null;
+
+  return [
+    `F4 ${limits.form4Limit ?? "--"}`,
+    `13F ${limits.thirteenFLimit ?? "--"}`,
+    `Mkt ${limits.marketLimit ?? "--"}`,
+  ].join(" · ");
 }
 
 function stageName(stage: IngestionStageResult) {
@@ -928,10 +948,11 @@ export default function ScraperAdminPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left text-[13px]">
+            <table className="w-full min-w-[1180px] text-left text-[13px]">
               <thead className="bg-[#181c23] font-mono text-[10px] uppercase tracking-wider text-[#8c909f]">
                 <tr>
                   <th className="px-6 py-3">Ticker</th>
+                  <th className="px-6 py-3">Run</th>
                   <th className="px-6 py-3">Source</th>
                   <th className="px-6 py-3">Status</th>
                   <th className="px-6 py-3">Found</th>
@@ -940,6 +961,7 @@ export default function ScraperAdminPage() {
                   <th className="px-6 py-3">Failed</th>
                   <th className="px-6 py-3">Records</th>
                   <th className="px-6 py-3">Started</th>
+                  <th className="px-6 py-3">Finished</th>
                   <th className="px-6 py-3">Error</th>
                 </tr>
               </thead>
@@ -949,6 +971,19 @@ export default function ScraperAdminPage() {
                   <tr key={row.id} className="hover:bg-[#181c23]/70">
                     <td className="px-6 py-4 font-mono font-semibold">
                       {row.ticker}
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="font-mono text-[12px] text-[#e0e2ed]">
+                        {formatRunId(row.runId)}
+                      </p>
+                      <p className="mt-1 text-[11px] text-[#8c909f]">
+                        {row.triggerSource ?? "unknown"}
+                      </p>
+                      {formatLimits(row) ? (
+                        <p className="mt-1 font-mono text-[10px] text-[#c2c6d6]">
+                          {formatLimits(row)}
+                        </p>
+                      ) : null}
                     </td>
                     <td className="px-6 py-4 text-[#c2c6d6]">
                       {row.sourceType}
@@ -972,8 +1007,42 @@ export default function ScraperAdminPage() {
                         ? new Date(row.startedAt).toLocaleString()
                         : "--"}
                     </td>
-                    <td className="max-w-[260px] truncate px-6 py-4 text-red-200">
-                      {row.errorMessage ?? "--"}
+                    <td className="px-6 py-4 text-[#c2c6d6]">
+                      <p>
+                        {row.completedAt
+                          ? new Date(row.completedAt).toLocaleString()
+                          : "--"}
+                      </p>
+                      <p className="mt-1 font-mono text-[10px] text-[#8c909f]">
+                        {formatDuration(row.durationSeconds)}
+                      </p>
+                    </td>
+                    <td className="max-w-[320px] px-6 py-4 text-red-200">
+                      <p className="truncate">{row.errorMessage ?? "--"}</p>
+                      {row.details?.stages?.length ? (
+                        <details className="mt-2 text-[#c2c6d6]">
+                          <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-wider text-[#8c909f]">
+                            {row.details.stages.length} stage details
+                          </summary>
+                          <div className="mt-2 space-y-1">
+                            {row.details.stages.slice(0, 6).map((stage, index) => (
+                              <p
+                                key={`${stageName(stage)}-${row.id}-${index}`}
+                                className="text-[11px]"
+                              >
+                                <span className="font-semibold text-[#e0e2ed]">
+                                  {stageName(stage)}
+                                </span>
+                                {": "}
+                                {stage.status ?? "success"} ·{" "}
+                                {formatCount(stage.processed)} processed ·{" "}
+                                {formatCount(stage.skipped)} skipped ·{" "}
+                                {formatCount(stage.failed)} failed
+                              </p>
+                            ))}
+                          </div>
+                        </details>
+                      ) : null}
                     </td>
                   </tr>
                 ))}
@@ -981,7 +1050,7 @@ export default function ScraperAdminPage() {
                 {history.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={12}
                       className="px-6 py-10 text-center text-[#8c909f]"
                     >
                       No scrape history yet.
