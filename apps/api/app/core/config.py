@@ -92,15 +92,49 @@ class Settings:
         self.CLERK_AUTH_DEBUG = _bool_env("CLERK_AUTH_DEBUG", False)
         self.ALLOW_DEV_AUTH = _bool_env("ALLOW_DEV_AUTH", False)
 
+        self.CACHE_ENABLED = _bool_env("CACHE_ENABLED", True)
+        self.CACHE_BACKEND = os.getenv("CACHE_BACKEND", "auto").lower().strip()
+        self.REDIS_URL = os.getenv("REDIS_URL")
+        self.CACHE_KEY_PREFIX = os.getenv("CACHE_KEY_PREFIX", "moneysignal")
+        self.CACHE_DEFAULT_TTL_SECONDS = _int_env("CACHE_DEFAULT_TTL_SECONDS", 60)
+        self.CACHE_MAX_ITEMS = _int_env("CACHE_MAX_ITEMS", 1000)
+        self.CACHE_REDIS_SOCKET_TIMEOUT_SECONDS = _int_env(
+            "CACHE_REDIS_SOCKET_TIMEOUT_SECONDS",
+            3,
+        )
+        self.CACHE_REDIS_CONNECT_TIMEOUT_SECONDS = _int_env(
+            "CACHE_REDIS_CONNECT_TIMEOUT_SECONDS",
+            3,
+        )
+        self.DASHBOARD_CACHE_TTL_SECONDS = _int_env("DASHBOARD_CACHE_TTL_SECONDS", 60)
+        self.STOCKS_LIST_CACHE_TTL_SECONDS = _int_env("STOCKS_LIST_CACHE_TTL_SECONDS", 60)
+        self.STOCK_DETAIL_CACHE_TTL_SECONDS = _int_env("STOCK_DETAIL_CACHE_TTL_SECONDS", 60)
+        self.QUOTES_READ_CACHE_TTL_SECONDS = _int_env("QUOTES_READ_CACHE_TTL_SECONDS", 30)
+        self.MARKET_SUMMARY_CACHE_TTL_SECONDS = _int_env("MARKET_SUMMARY_CACHE_TTL_SECONDS", 60)
+        self.CACHE_WARM_ON_STARTUP = _bool_env("CACHE_WARM_ON_STARTUP", False)
+        self.CACHE_STALE_WHILE_REVALIDATE_SECONDS = _int_env(
+            "CACHE_STALE_WHILE_REVALIDATE_SECONDS",
+            60,
+        )
         self.MARKET_DATA_CACHE_TTL_SECONDS = _int_env(
             "MARKET_DATA_CACHE_TTL_SECONDS",
             15 * 60,
         )
-
-        self.MARKET_DATA_REQUEST_TIMEOUT_SECONDS = _int_env(
-            "MARKET_DATA_REQUEST_TIMEOUT_SECONDS",
-            20,
+        self.MARKET_QUOTE_STALE_MINUTES = _int_env(
+            "MARKET_QUOTE_STALE_MINUTES",
+            60,
         )
+        self.MARKET_REQUEST_TIMEOUT_SECONDS = _int_env(
+            "MARKET_REQUEST_TIMEOUT_SECONDS",
+            _int_env("MARKET_DATA_REQUEST_TIMEOUT_SECONDS", 10),
+        )
+        self.MARKET_DATA_REQUEST_TIMEOUT_SECONDS = self.MARKET_REQUEST_TIMEOUT_SECONDS
+        self.MARKET_MAX_RETRIES = _int_env("MARKET_MAX_RETRIES", 2)
+        self.MARKET_BACKOFF_BASE_SECONDS = _float_env(
+            "MARKET_BACKOFF_BASE_SECONDS",
+            0.5,
+        )
+        self.MARKET_MAX_BATCH_SIZE = _int_env("MARKET_MAX_BATCH_SIZE", 25)
 
         self.SEC_USER_AGENT = os.getenv(
             "SEC_USER_AGENT",

@@ -35,6 +35,49 @@ run id instead of starting a duplicate task. `INGESTION_MAX_RUNTIME_SECONDS`
 defaults to `1200`; after that window the status endpoint marks the run stale
 for the admin UI, while the background task is allowed to finish naturally.
 
+## Cache Settings
+
+MoneySignal supports a production-style cache layer with Redis when `REDIS_URL`
+is configured and a bounded in-memory TTL fallback for local development. Cache
+errors fail open; API routes should continue to work if Redis is unavailable.
+
+```powershell
+cd apps/api
+$env:CACHE_ENABLED = "true"
+$env:CACHE_BACKEND = "auto"
+$env:REDIS_URL = "redis://localhost:6379/0"
+$env:CACHE_KEY_PREFIX = "moneysignal"
+$env:CACHE_DEFAULT_TTL_SECONDS = "60"
+$env:QUOTES_READ_CACHE_TTL_SECONDS = "30"
+```
+
+Health and stats are available without exposing cached values or Redis secrets:
+
+```powershell
+curl http://127.0.0.1:8001/api/v1/health/cache
+```
+
+Read endpoints cache only successful global/public responses. Admin mutations
+and ingestion runs invalidate affected namespaces after data changes.
+## Market Data Settings
+
+Market quotes are fetched through the configured provider order with bounded
+retries, fallback between available providers, quote validation, and freshness
+metadata. `MARKET_DATA_PROVIDER=auto` tries Yahoo Finance first, then Alpha
+Vantage when `ALPHA_VANTAGE_API_KEY` is configured.
+
+```powershell
+cd apps/api
+$env:MARKET_DATA_PROVIDER = "auto"
+$env:MARKET_REQUEST_TIMEOUT_SECONDS = "10"
+$env:MARKET_MAX_RETRIES = "2"
+$env:MARKET_BACKOFF_BASE_SECONDS = "0.5"
+$env:MARKET_QUOTE_STALE_MINUTES = "60"
+$env:MARKET_MAX_BATCH_SIZE = "25"
+```
+
+Invalid, stale, or unsupported quote data is skipped and reported in ingestion
+stage details instead of being saved as a market snapshot.
 ## SEC Client Settings
 
 SEC archive and submissions requests are centralized, rate-limited, retried for

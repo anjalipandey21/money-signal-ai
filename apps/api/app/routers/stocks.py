@@ -1,7 +1,7 @@
 import yfinance as yf
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import or_
 from app.services.stock_universe_service import (
     find_sec_company_by_ticker,
@@ -9,6 +9,8 @@ from app.services.stock_universe_service import (
     StockUniverseError,
 )
 
+from app.core.cache import cache, invalidate_ingestion_caches, invalidate_market_caches
+from app.core.config import settings
 from app.core.security import get_current_admin_user
 from app.db.database import get_db
 from app.models import (
@@ -132,6 +134,62 @@ def _get_sec_profile_for_ticker(symbol: str) -> dict | None:
     except Exception:
         return None
 
+
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+
+    return parsed
+
+
+def _refresh_quote_freshness(item: dict) -> dict:
+    refreshed = dict(item)
+
+    if "error" in refreshed:
+        return refreshed
+
+    fetched_at = _parse_iso_datetime(refreshed.get("priceFetchedAt"))
+    quote_age_minutes = None
+
+    if fetched_at:
+        quote_age_minutes = round(
+            (datetime.utcnow() - fetched_at).total_seconds() / 60,
+            2,
+        )
+
+    refreshed["staleAfterMinutes"] = settings.MARKET_QUOTE_STALE_MINUTES
+    refreshed["quoteAgeMinutes"] = quote_age_minutes
+    refreshed["isStale"] = (
+        quote_age_minutes is None
+        or quote_age_minutes > settings.MARKET_QUOTE_STALE_MINUTES
+    )
+
+    return refreshed
+
+
+def _order_quote_results(results: list[dict], requested_symbols: list[str]) -> list[dict]:
+    by_ticker = {
+        item.get("ticker"): item
+        for item in results
+        if isinstance(item, dict) and item.get("ticker")
+    }
+
+    ordered = [by_ticker[symbol] for symbol in requested_symbols if symbol in by_ticker]
+
+    return [_refresh_quote_freshness(item) for item in ordered]
+
+
+def _quote_results_have_errors(results: list[dict]) -> bool:
+    return any(isinstance(item, dict) and item.get("error") for item in results)
+
 @router.get("")
 @router.get("/")
 def list_stocks(
@@ -140,6 +198,33 @@ def list_stocks(
     search: str | None = Query(None, description="Search ticker or company name"),
     refresh: bool = Query(False, description="Refresh visible rows from live provider"),
     db: Session = Depends(get_db),
+):
+    if refresh:
+        return _build_stocks_list_response(limit, offset, search, refresh, db)
+
+    cache_key = cache.build_key(
+        "stocks",
+        {
+            "endpoint": "list",
+            "limit": limit,
+            "offset": offset,
+            "search": search.strip().lower() if search else None,
+        },
+    )
+
+    return cache.get_or_set(
+        cache_key,
+        lambda: _build_stocks_list_response(limit, offset, search, refresh, db),
+        ttl_seconds=settings.STOCKS_LIST_CACHE_TTL_SECONDS,
+    )
+
+
+def _build_stocks_list_response(
+    limit: int,
+    offset: int,
+    search: str | None,
+    refresh: bool,
+    db: Session,
 ):
     query = (
         db.query(Company, MoneySignalScore)
@@ -207,6 +292,26 @@ def get_stock_quote(
 ):
     symbol = ticker.strip().upper()
 
+    if refresh:
+        return _build_stock_quote_response(symbol, refresh, db)
+
+    cache_key = cache.build_key(
+        "quotes",
+        {"endpoint": "quote", "ticker": symbol},
+    )
+
+    cached = cache.get(cache_key)
+
+    if cached is not None:
+        return _refresh_quote_freshness(cached)
+
+    result = _build_stock_quote_response(symbol, refresh, db)
+    cache.set(cache_key, result, ttl_seconds=settings.QUOTES_READ_CACHE_TTL_SECONDS)
+
+    return _refresh_quote_freshness(result)
+
+
+def _build_stock_quote_response(symbol: str, refresh: bool, db: Session) -> dict:
     company = db.query(Company).filter(Company.ticker == symbol).first()
 
     if not company:
@@ -259,6 +364,31 @@ def get_stock_quotes(
             detail="Maximum 25 tickers allowed per request",
         )
 
+    canonical_symbols = sorted(set(symbols))
+    cache_key = cache.build_key(
+        "quotes",
+        {"endpoint": "quotes", "tickers": canonical_symbols},
+    )
+
+    if not refresh:
+        cached = cache.get(cache_key)
+
+        if cached is not None:
+            return _order_quote_results(cached, symbols)
+
+    results = _build_stock_quotes_response(canonical_symbols, refresh, db)
+
+    if not _quote_results_have_errors(results):
+        cache.set(
+            cache_key,
+            results,
+            ttl_seconds=settings.QUOTES_READ_CACHE_TTL_SECONDS,
+        )
+
+    return _order_quote_results(results, symbols)
+
+
+def _build_stock_quotes_response(symbols: list[str], refresh: bool, db: Session) -> list[dict]:
     companies = (
         db.query(Company)
         .filter(Company.ticker.in_(symbols))
@@ -300,6 +430,10 @@ def get_stock_quotes(
                     "marketProvider": market["marketProvider"],
                     "priceFetchedAt": market["priceFetchedAt"],
                     "marketTime": market["marketTime"],
+                    "marketStatus": market.get("marketStatus"),
+                    "isStale": market.get("isStale"),
+                    "staleAfterMinutes": market.get("staleAfterMinutes"),
+                    "quoteAgeMinutes": market.get("quoteAgeMinutes"),
                 }
             )
 
@@ -587,14 +721,15 @@ def import_universe(
     _current_user: User = Depends(get_current_admin_user),
 ):
     try:
-        return import_stock_universe(
+        result = import_stock_universe(
             db,
             limit=limit,
             include_funds=include_funds,
             include_otc=include_otc,
             enrich_profile=enrich_profile,
         )
-
+        invalidate_ingestion_caches(universe_changed=True)
+        return result
     except StockUniverseError as error:
         db.rollback()
         raise HTTPException(status_code=502, detail=str(error)) from error
@@ -606,9 +741,17 @@ def import_universe(
 
 @router.get("/universe/stats")
 def get_universe_stats(db: Session = Depends(get_db)):
-    companies = db.query(Company).order_by(Company.ticker.asc()).all()
+    cache_key = cache.build_key("stocks", {"endpoint": "universe-stats"})
 
-    return get_company_universe_stats(companies)
+    def producer():
+        companies = db.query(Company).order_by(Company.ticker.asc()).all()
+        return get_company_universe_stats(companies)
+
+    return cache.get_or_set(
+        cache_key,
+        producer,
+        ttl_seconds=settings.STOCKS_LIST_CACHE_TTL_SECONDS,
+    )
 
 
 @router.post("/quotes/refresh-tracked")
@@ -654,6 +797,9 @@ def refresh_tracked_quotes(
                 }
             )
 
+    if any(item.get("status") == "success" for item in results):
+        invalidate_market_caches()
+
     return {
         "count": len(results),
         "results": results,
@@ -662,9 +808,17 @@ def refresh_tracked_quotes(
 @router.get("/{ticker}")
 def get_stock_detail(ticker: str, db: Session = Depends(get_db)):
     symbol = ticker.strip().upper()
+    cache_key = cache.build_key("stocks", {"endpoint": "detail", "ticker": symbol})
 
+    return cache.get_or_set(
+        cache_key,
+        lambda: _build_stock_detail_response(symbol, db),
+        ttl_seconds=settings.STOCK_DETAIL_CACHE_TTL_SECONDS,
+    )
+
+
+def _build_stock_detail_response(symbol: str, db: Session):
     company = db.query(Company).filter(Company.ticker == symbol).first()
-
     if not company:
         raise HTTPException(
             status_code=404,
@@ -983,3 +1137,4 @@ def _build_signal_timeline(db: Session, company_id: int) -> list[dict]:
         )
 
     return timeline
+

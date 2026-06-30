@@ -83,11 +83,20 @@ def _safe_stage(stage: dict[str, Any]) -> dict[str, Any]:
         "filingsDuplicateSkipped",
         "holdingsCreated",
         "holdingsUpdated",
+        "staleSkipped",
+        "providerFallbackCount",
+        "providerFailureCount",
+        "invalidTickerSkipped",
+        "otcSkipped",
+        "unsupportedTickerSkipped",
+        "eligibleTickers",
+        "filteredTickers",
         "warningCount",
         "errorCount",
         "skippedTickers",
         "failedTickers",
         "skipReasons",
+        "providerSummary",
     ):
         if key in stage:
             safe[key] = stage[key]

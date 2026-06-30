@@ -737,6 +737,10 @@ export type StockQuoteResponse = {
   marketProvider?: string | null;
   priceFetchedAt?: string | null;
   marketTime?: string | null;
+  marketStatus?: string | null;
+  isStale?: boolean;
+  staleAfterMinutes?: number;
+  quoteAgeMinutes?: number | null;
   error?: string;
   freshnessLabel?: string;
 };
@@ -930,6 +934,16 @@ export type IngestionStageResult = {
   recordsCreated?: number | null;
   warningCount?: number;
   errorCount?: number;
+  staleSkipped?: number;
+  providerFallbackCount?: number;
+  providerFailureCount?: number;
+  invalidTickerSkipped?: number;
+  otcSkipped?: number;
+  unsupportedTickerSkipped?: number;
+  eligibleTickers?: number;
+  filteredTickers?: number;
+  skipReasons?: Record<string, number>;
+  providerSummary?: Record<string, { success?: number; failed?: number; fallbacks?: number }>;
   skippedTickers?: string[];
   failedTickers?: string[];
   warnings?: IngestionPipelineIssue[];
