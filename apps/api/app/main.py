@@ -81,6 +81,11 @@ def start_background_scheduler():
         if settings.REQUIRE_DB_ON_STARTUP:
             raise RuntimeError("Database connectivity check failed")
 
+    if settings.CACHE_WARM_ON_STARTUP:
+        from app.services.cache_warming_service import warm_public_cache
+
+        warm_public_cache()
+
     if settings.SCHEDULER_ENABLED:
         start_scheduler()
 
@@ -88,3 +93,4 @@ def start_background_scheduler():
 @app.on_event("shutdown")
 def stop_background_scheduler():
     stop_scheduler()
+

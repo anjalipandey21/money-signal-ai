@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.core.cache import invalidate_ingestion_caches
 from app.core.security import get_current_admin_user
 from app.db.database import get_db
 from app.models import Company, ScrapeHistory, User
@@ -95,6 +96,7 @@ def import_sec_company_universe(
             include_otc=include_otc,
             enrich_profile=enrich_profile,
         )
+        invalidate_ingestion_caches(universe_changed=True)
 
     except StockUniverseError as error:
         db.rollback()
@@ -235,6 +237,7 @@ def ingest_latest_sec_form4_filing(
         result = ingest_form4_filing(db, company, filings[0])
 
         db.commit()
+        invalidate_ingestion_caches(signals_changed=True)
 
         return {
             "ticker": company.ticker,
@@ -318,6 +321,7 @@ def ingest_recent_sec_form4_filings(
                 )
 
         db.commit()
+        invalidate_ingestion_caches(signals_changed=True)
         completed_at = datetime.utcnow()
 
         return {
@@ -500,6 +504,7 @@ def ingest_latest_sec_13f_filing(
         result = ingest_13f_filing(db, cik, filings[0])
 
         db.commit()
+        invalidate_ingestion_caches(signals_changed=True)
 
         return {
             "cik": cik,
@@ -561,6 +566,7 @@ def ingest_recent_sec_13f_filings(
                 )
 
         db.commit()
+        invalidate_ingestion_caches(signals_changed=True)
         completed_at = datetime.utcnow()
 
         return {
@@ -580,3 +586,5 @@ def ingest_recent_sec_13f_filings(
     except Exception as error:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(error)) from error
+
+

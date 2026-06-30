@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.core.cache import cache
+from app.core.config import settings
 from app.db.database import get_db
 from app.models import Company
 from app.services.market_data_service import get_latest_market_snapshot
@@ -40,8 +42,17 @@ def _status_from_age(age_minutes):
 
 @router.get("/market")
 def get_market_data_health(db: Session = Depends(get_db)):
-    companies = db.query(Company).order_by(Company.ticker.asc()).all()
+    cache_key = cache.build_key("market", {"endpoint": "data-health"})
 
+    return cache.get_or_set(
+        cache_key,
+        lambda: _build_market_data_health(db),
+        ttl_seconds=settings.MARKET_SUMMARY_CACHE_TTL_SECONDS,
+    )
+
+
+def _build_market_data_health(db: Session):
+    companies = db.query(Company).order_by(Company.ticker.asc()).all()
     rows = []
     summary = {
         "total": len(companies),
@@ -77,3 +88,4 @@ def get_market_data_health(db: Session = Depends(get_db)):
         "summary": summary,
         "items": rows,
     }
+

@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.core.cache import cache
 from app.db.manager import get_database_health
 
 router = APIRouter()
@@ -17,3 +18,9 @@ def health_check():
 @router.get("/health/db")
 def database_health_check():
     return get_database_health()
+
+
+@router.get("/health/cache")
+def cache_health_check():
+    return cache.health()
+

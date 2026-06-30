@@ -12,6 +12,7 @@ import re
 
 from sqlalchemy.orm import Session
 
+from app.core.cache import invalidate_market_caches
 from app.core.config import settings
 from app.models import Company, MarketSnapshot
 
@@ -466,6 +467,7 @@ def refresh_market_snapshot(db: Session, ticker: str) -> MarketSnapshot:
     db.add(snapshot)
     db.commit()
     db.refresh(snapshot)
+    invalidate_market_caches()
 
     return snapshot
 
@@ -578,3 +580,4 @@ def get_price_history(ticker: str, days: int = 30) -> list[dict]:
         )
 
     return result
+

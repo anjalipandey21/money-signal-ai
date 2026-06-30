@@ -6,6 +6,7 @@ from uuid import uuid4
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.orm import Session
 
+from app.core.cache import invalidate_ingestion_caches
 from app.core.config import settings
 from app.db.database import SessionLocal
 from app.models import Company, ScrapeHistory
@@ -636,6 +637,11 @@ def run_ingestion_background(
                     }
                 )
 
+        invalidate_ingestion_caches(
+            market_changed=bool(refresh_market and market_limit > 0),
+            signals_changed=bool(form4_limit > 0 or thirteen_f_limit > 0),
+        )
+
     except Exception as error:
         completed_at = datetime.utcnow()
         error_message = _short_error(error)
@@ -749,3 +755,4 @@ def run_ingestion_once(
         )
 
     return get_scheduler_status()
+

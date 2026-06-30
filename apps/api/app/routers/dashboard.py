@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.core.cache import cache
+from app.core.config import settings
 from app.db.database import get_db
 from app.models import (
     AIInsight,
@@ -48,25 +50,33 @@ def signal_direction_to_trend(direction: str):
 
 @router.get("/summary")
 def get_dashboard_summary(db: Session = Depends(get_db)):
-    active_signals = db.query(Signal).count()
-    bullish_signals = db.query(Signal).filter(Signal.direction == "bullish").count()
-    bearish_signals = db.query(Signal).filter(Signal.direction == "bearish").count()
-    watchlist_count = db.query(Watchlist).filter(Watchlist.user_id == "demo-user").count()
+    cache_key = cache.build_key("dashboard", {"endpoint": "summary"})
 
-    top_score = (
-        db.query(MoneySignalScore)
-        .order_by(MoneySignalScore.score.desc())
-        .first()
+    def producer():
+        active_signals = db.query(Signal).count()
+        bullish_signals = db.query(Signal).filter(Signal.direction == "bullish").count()
+        bearish_signals = db.query(Signal).filter(Signal.direction == "bearish").count()
+        watchlist_count = db.query(Watchlist).filter(Watchlist.user_id == "demo-user").count()
+
+        top_score = (
+            db.query(MoneySignalScore)
+            .order_by(MoneySignalScore.score.desc())
+            .first()
+        )
+
+        return {
+            "moneySignalScore": float(top_score.score) if top_score else 0,
+            "activeSignals": active_signals,
+            "bullishSignals": bullish_signals,
+            "bearishSignals": bearish_signals,
+            "watchlistCount": watchlist_count,
+        }
+
+    return cache.get_or_set(
+        cache_key,
+        producer,
+        ttl_seconds=settings.DASHBOARD_CACHE_TTL_SECONDS,
     )
-
-    return {
-        "moneySignalScore": float(top_score.score) if top_score else 0,
-        "activeSignals": active_signals,
-        "bullishSignals": bullish_signals,
-        "bearishSignals": bearish_signals,
-        "watchlistCount": watchlist_count,
-    }
-
 
 @router.get("/top-scores")
 def get_top_money_signal_scores(db: Session = Depends(get_db)):
@@ -210,3 +220,4 @@ def get_watchlist_preview(db: Session = Depends(get_db)):
         )
 
     return result
+
